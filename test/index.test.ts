@@ -18,6 +18,9 @@ describe("pi-task extension entrypoint", () => {
 			registerShortcut(shortcut: string) {
 				shortcuts.push(shortcut);
 			},
+			getActiveTools() {
+				return ["read", "bash", "edit", "write"];
+			},
 			on(eventName: string) {
 				handlers.add(eventName);
 			},

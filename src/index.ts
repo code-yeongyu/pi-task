@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { Key } from "@mariozechner/pi-tui";
 import { getSenpiAgentDir, getTaskStateDir } from "./config/paths.js";
 import { CompositeTaskRunner } from "./runtime/composite-runner.js";
-import { installTaskEventBridge, type PiEventBridgeApi } from "./runtime/event-bridge.js";
+import { type BridgeContext, installTaskEventBridge, type PiEventBridgeApi } from "./runtime/event-bridge.js";
 import { InProcessRunner } from "./runtime/in-process-runner.js";
 import { ProcessTaskRunner } from "./runtime/process-task-runner.js";
 import { ResultStore } from "./runtime/result-store.js";
@@ -16,26 +16,30 @@ import { formatTaskList, syncTaskStatusToUi } from "./ui/status.js";
 export { clearRegisteredAgents, defineAgent, registerAgent } from "./agents/code-agents.js";
 
 type PiTaskExtensionApi = Pick<ExtensionAPI, "registerTool" | "registerCommand" | "registerShortcut"> &
+	Pick<ExtensionAPI, "getActiveTools"> &
 	PiEventBridgeApi;
 
 function isCancellableStatus(status: string): boolean {
 	return status === "queued" || status === "running" || status === "retrying";
 }
 
-function notifyTasks(manager: TaskManager, ctx: ExtensionContext): void {
+function notifyTasks(manager: TaskManager, ctx: ExtensionContext, options: { all?: boolean } = {}): void {
 	if (!ctx.hasUI) return;
 	syncTaskStatusToUi(manager, ctx);
-	ctx.ui.notify(formatTaskList(manager.list()));
+	const sessionId = options.all ? undefined : ctx.sessionManager.getSessionId();
+	const tasks = manager.listForScope({ ...(options.all ? { all: true } : { sessionId }) });
+	ctx.ui.notify(formatTaskList(tasks));
 }
 
 async function cancelTaskFromUi(manager: TaskManager, ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI) return;
-	const tasks = manager.list().filter((task) => isCancellableStatus(task.status));
+	const sessionId = ctx.sessionManager.getSessionId();
+	const tasks = manager.listForScope({ sessionId }).filter((task) => isCancellableStatus(task.status));
 	if (tasks.length === 0) {
 		ctx.ui.notify("No running pi-task task can be cancelled.", "info");
 		return;
 	}
-	const options = tasks.map((task) => `${task.taskId} ${task.agentType} ${task.status}`);
+	const options = tasks.map((task) => formatTaskList([task]));
 	const selected = await ctx.ui.select("Cancel pi-task task", options);
 	if (selected === undefined) return;
 	const taskId = selected.split(" ")[0];
@@ -50,6 +54,7 @@ async function cancelTaskFromUi(manager: TaskManager, ctx: ExtensionContext): Pr
 export default function piTaskExtension(pi: PiTaskExtensionApi): void {
 	const stateDir = getTaskStateDir();
 	const agentDir = getSenpiAgentDir();
+	let currentUiContext: BridgeContext | undefined;
 	const manager = new TaskManager({
 		runner: new CompositeTaskRunner({
 			inProcess: new InProcessRunner({ agentDir }),
@@ -57,22 +62,30 @@ export default function piTaskExtension(pi: PiTaskExtensionApi): void {
 		}),
 		resultStore: new ResultStore(stateDir),
 		logger: new TaskEventLogger(stateDir),
+		onTaskChange: () => {
+			if (currentUiContext !== undefined) {
+				syncTaskStatusToUi(manager, currentUiContext);
+			}
+		},
 	});
 
-	pi.registerTool(createTaskTool(manager));
+	pi.registerTool(createTaskTool(manager, { getActiveTools: () => pi.getActiveTools() }));
 	pi.registerTool(createTaskStatusTool(manager));
 	pi.registerTool(createTaskCancelTool(manager));
 
 	installTaskEventBridge(pi, {
 		manager,
-		syncStatus: (ctx) => syncTaskStatusToUi(manager, ctx),
+		syncStatus: (ctx) => {
+			currentUiContext = ctx;
+			syncTaskStatusToUi(manager, ctx);
+		},
 		getParentModel: () => manager.getParentModel(),
 	});
 
 	pi.registerCommand("tasks", {
-		description: "Show pi-task subagent task status",
-		handler: async (_args, ctx) => {
-			notifyTasks(manager, ctx);
+		description: "Show pi-task subagent task status. Pass --all to include other sessions.",
+		handler: async (args, ctx) => {
+			notifyTasks(manager, ctx, { all: args.trim() === "--all" || args.trim() === "all" });
 		},
 	});
 
