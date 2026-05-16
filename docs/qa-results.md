@@ -19,3 +19,4 @@ Residual notes:
 
 - `pi` is not installed on this machine; `senpi` is installed and is the verified host command.
 - Full interactive mouse QA depends on the installed pi TUI selector behavior. The extension uses `ctx.ui.select()` and `ctx.ui.confirm()` so keyboard support is covered by public API and mouse support follows the host TUI.
+- External verifier agents were requested three times, but each attempt was blocked by the Codex account usage limit before an independent pass/fail result could be produced.

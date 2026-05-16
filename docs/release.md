@@ -1,6 +1,6 @@
 # Release
 
-Status: READY
+Status: COMPLETED
 
 Repository setup:
 
@@ -16,3 +16,12 @@ git tag v0.1.1
 git push origin v0.1.1
 gh release create v0.1.1 --generate-notes
 ```
+
+Current public repository:
+
+- `https://github.com/code-yeongyu/pi-task`
+- Visibility: public.
+- Latest tag: `v0.1.1`.
+- Latest release: `https://github.com/code-yeongyu/pi-task/releases/tag/v0.1.1`.
+- CI status: latest `main` push succeeded on GitHub Actions.
+- Release workflow status: latest `v0.1.1` release workflow succeeded. The npm publish step is configured to skip when `NODE_AUTH_TOKEN` is not present.
