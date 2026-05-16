@@ -22,9 +22,17 @@ Verifier attempts:
 - `019e2fc0-5e9b-76d2-b952-acf3d1c2712d`: blocked by Codex usage limit.
 - Independent read-only `senpi` verifier attempt 1: failed on live process pid/heartbeat persistence and nested YAML permission parsing.
 - Independent read-only `senpi` verifier attempt 2: `VERIFIER PASS`.
+- `openai/gpt-5.2` xhigh judge attempt 1: failed on nondeterministic async test sleeps and missing cancellation behavior coverage.
+- `openai/gpt-5.2` xhigh judge attempt 2: `GPT-5.2 XHIGH PASS`.
 
 Final verifier note:
 
 ```text
 VERIFIER PASS: task/task_status/task_cancel, background final response/error visibility, in-process default with process mode, pid/external-kill detection, live pid/heartbeat persistence, resume/lost-state reconciliation, ancestry, depth policy, allowedSubagents, nested tools YAML permissions, model fallback, code-defined agents, ~/.senpi/agents/agents loading, event bridge/logging, TUI status/cancel UX, docs, local install, release, and CI evidence are covered.
+```
+
+GPT-5.2 xhigh final note:
+
+```text
+GPT-5.2 XHIGH PASS: No remaining TS-rule blockers; async tests are deterministic; task_cancel/TaskManager.cancel behavior is covered; task() core requirements remain covered across code, tests, docs, manual QA, CI, and release artifacts.
 ```

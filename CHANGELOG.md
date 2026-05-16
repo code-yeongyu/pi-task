@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- Remove extension API type assertions flagged by the TypeScript no-excuse gate.
+- Replace nondeterministic async sleeps in tests with deterministic synchronization.
+- Add behavioral cancellation coverage and record GPT-5.2 xhigh no-slop verification.
+
 ## 0.1.2
 
 - Stream process-mode pid and heartbeat updates while tasks are still running.

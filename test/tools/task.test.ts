@@ -1,16 +1,22 @@
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearInProcessAncestry, registerInProcessAncestry } from "../../src/runtime/ancestry.js";
+import type { RunnerResult } from "../../src/runtime/task-manager.js";
 import { TaskManager } from "../../src/runtime/task-manager.js";
 import { createTaskTool } from "../../src/tools/task.js";
+import { createTaskCancelTool } from "../../src/tools/task-cancel.js";
 import { createTaskStatusTool } from "../../src/tools/task-status.js";
+import { deferred } from "../helpers/deferred.js";
 
-function createExtensionContext(): ExtensionContext {
+type ToolTestContext = {
+	cwd: string;
+	sessionManager: { getSessionId: () => string };
+};
+
+function createExtensionContext(): ToolTestContext {
 	return {
 		cwd: process.cwd(),
 		sessionManager: { getSessionId: () => "parent" },
-		model: undefined,
-	} as ExtensionContext;
+	};
 }
 
 afterEach(() => {
@@ -42,11 +48,11 @@ describe("task tool", () => {
 	});
 
 	it("#given background task #when executed #then returns task id immediately and status can be polled", async () => {
+		const backgroundResult = deferred<RunnerResult>();
 		const manager = new TaskManager({
 			runner: {
 				async run() {
-					await new Promise((resolve) => setTimeout(resolve, 20));
-					return { status: "completed", finalResponse: "Background final", progress: ["done"] };
+					return await backgroundResult.promise;
 				},
 			},
 		});
@@ -62,6 +68,7 @@ describe("task tool", () => {
 		);
 
 		expect(result.details.task_id).toMatch(/^task_/);
+		backgroundResult.resolve({ status: "completed", finalResponse: "Background final", progress: ["done"] });
 		const statusResult = await status.execute("call_3", {
 			task_id: result.details.task_id,
 			wait: true,
@@ -74,11 +81,11 @@ describe("task tool", () => {
 	});
 
 	it("#given default agent config #when fields are omitted #then applies frontmatter defaults", async () => {
+		const backgroundResult = deferred<RunnerResult>();
 		const manager = new TaskManager({
 			runner: {
 				async run() {
-					await new Promise((resolve) => setTimeout(resolve, 20));
-					return { status: "completed", finalResponse: "done" };
+					return await backgroundResult.promise;
 				},
 			},
 		});
@@ -113,6 +120,35 @@ describe("task tool", () => {
 		expect(stored?.executionMode).toBe("process");
 		expect(stored?.model).toBe("provider/a");
 		expect(stored?.modelAttempts.map((attempt) => attempt.model)).toEqual(["provider/a", "provider/b"]);
+		backgroundResult.resolve({ status: "completed", finalResponse: "done" });
+		await manager.wait(result.details.task_id, 100);
+	});
+
+	it("#given running background task #when task_cancel executes #then status is cancelled and visible", async () => {
+		const manager = new TaskManager({
+			runner: {
+				async run() {
+					await new Promise(() => {});
+					return { status: "completed" };
+				},
+			},
+		});
+		const started = manager.start({
+			prompt: "Do work",
+			agentType: "finder",
+			parentSessionId: "parent",
+			background: true,
+		});
+		const cancel = createTaskCancelTool(manager);
+
+		const result = await cancel.execute("call_cancel", {
+			task_id: started.task.taskId,
+			reason: "stop from test",
+		});
+
+		expect(result.details).toEqual({ task_id: started.task.taskId, status: "cancelled" });
+		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain("Cancelled");
+		expect(manager.get(started.task.taskId)?.lastError?.message).toBe("stop from test");
 	});
 
 	it("#given nested task beyond default depth #when parent does not allow target #then denies delegation", async () => {

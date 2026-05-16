@@ -25,11 +25,16 @@ type CreateTaskToolOptions = {
 	loadAgents?: (cwd: string) => Promise<Record<string, AgentInfo>>;
 };
 
-function getParentSessionId(ctx: ExtensionContext): string {
+type TaskToolContext = {
+	cwd: string;
+	sessionManager: Pick<ExtensionContext["sessionManager"], "getSessionId">;
+};
+
+function getParentSessionId(ctx: TaskToolContext): string {
 	return ctx.sessionManager.getSessionId();
 }
 
-function getCurrentAncestry(ctx: ExtensionContext) {
+function getCurrentAncestry(ctx: TaskToolContext) {
 	return getInProcessAncestry(getParentSessionId(ctx)) ?? getEnvironmentAncestry();
 }
 
@@ -58,7 +63,7 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 			},
 			signal: AbortSignal | undefined,
 			onUpdate: ((partial: AgentToolResult<TaskToolDetails>) => void) | undefined,
-			ctx: ExtensionContext,
+			ctx: TaskToolContext,
 		): Promise<AgentToolResult<TaskToolDetails>> {
 			const agents: Record<string, AgentInfo> = await loadAgents(ctx.cwd).catch(() => ({}));
 			const agentType = params.subagent_type ?? "default";
