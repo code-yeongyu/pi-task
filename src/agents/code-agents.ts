@@ -1,3 +1,4 @@
+import { fromConfig, mergeRulesets } from "../permissions/rules.js";
 import type { AgentInfo } from "./schema.js";
 
 const registeredAgents = new Map<string, AgentInfo>();
@@ -16,7 +17,7 @@ export function defineAgent(input: CodeAgentInput): AgentInfo {
 		...(input.models !== undefined && { models: input.models }),
 		...(input.temperature !== undefined && { temperature: input.temperature }),
 		...(input.tools !== undefined && { tools: input.tools }),
-		permission: input.permission ?? [],
+		permission: mergeRulesets(fromConfig(input.tools ?? {}), input.permission ?? []),
 		...(input.background !== undefined && { background: input.background }),
 		...(input.executionMode !== undefined && { executionMode: input.executionMode }),
 		...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),

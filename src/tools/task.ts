@@ -2,6 +2,7 @@ import type { AgentToolResult, ExtensionContext } from "@mariozechner/pi-coding-
 import { Type } from "typebox";
 import { loadAllAgents } from "../agents/loader.js";
 import type { AgentInfo } from "../agents/schema.js";
+import { resolveChildToolSelection } from "../permissions/tool-allowlist.js";
 import { getEnvironmentAncestry, getInProcessAncestry } from "../runtime/ancestry.js";
 import type { TaskManager } from "../runtime/task-manager.js";
 import { decideTaskPolicy } from "../runtime/task-policy.js";
@@ -10,6 +11,11 @@ import type { ExecutionMode } from "../runtime/types.js";
 export type TaskToolDetails = {
 	task_id: string;
 	status: string;
+	agent_type?: string;
+	agent_mode?: string;
+	execution_mode?: ExecutionMode;
+	model?: string;
+	parent_session_id?: string;
 	reason?: string;
 };
 
@@ -23,6 +29,7 @@ export const TaskToolParams = Type.Object({
 
 type CreateTaskToolOptions = {
 	loadAgents?: (cwd: string) => Promise<Record<string, AgentInfo>>;
+	getActiveTools?: () => string[];
 };
 
 type TaskToolContext = {
@@ -40,6 +47,7 @@ function getCurrentAncestry(ctx: TaskToolContext) {
 
 export function createTaskTool(manager: TaskManager, options: CreateTaskToolOptions = {}) {
 	const loadAgents = options.loadAgents ?? loadAllAgents;
+	const getActiveTools = options.getActiveTools;
 	return {
 		name: "task",
 		label: "Task",
@@ -86,9 +94,16 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 			const parentSessionId = getParentSessionId(ctx);
 			const rootSessionId = ancestry?.rootSessionId ?? parentSessionId;
 			const depth = (ancestry?.depth ?? 0) + 1;
+			const toolSelection = resolveChildToolSelection({ agent, childDepth: depth });
+			const explicitDisallowedTools = agent?.disallowedTools ?? [];
+			const inheritedProcessToolAllowlist =
+				executionMode === "process" && toolSelection.kind === "inherit" && toolSelection.disallowedTools.length > 0
+					? getActiveTools?.().filter((tool) => !toolSelection.disallowedTools.includes(tool))
+					: undefined;
 			const started = manager.start({
 				prompt: params.prompt,
 				agentType,
+				...(agent?.mode !== undefined && { agentMode: agent.mode }),
 				...(params.description !== undefined && { description: params.description }),
 				parentSessionId,
 				rootSessionId,
@@ -98,23 +113,45 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 				...(executionMode !== undefined && { executionMode }),
 				...(agent?.model !== undefined && { model: agent.model }),
 				...(agent?.models !== undefined && { models: agent.models }),
+				...(toolSelection.kind === "allowlist" && { toolAllowlist: toolSelection.tools }),
+				...(inheritedProcessToolAllowlist !== undefined && { toolAllowlist: inheritedProcessToolAllowlist }),
+				...(toolSelection.kind === "inherit" &&
+					inheritedProcessToolAllowlist === undefined &&
+					toolSelection.disallowedTools.length > 0 && { toolDisallowlist: toolSelection.disallowedTools }),
+				...(toolSelection.kind === "allowlist" &&
+					explicitDisallowedTools.length > 0 && { toolDisallowlist: explicitDisallowedTools }),
 				background,
 				signal,
 			});
+			const startedDetails = {
+				task_id: started.task.taskId,
+				status: started.task.status,
+				agent_type: started.task.agentType,
+				...(started.task.agentMode !== undefined && { agent_mode: started.task.agentMode }),
+				execution_mode: started.task.executionMode,
+				...(started.task.model !== undefined && { model: started.task.model }),
+				parent_session_id: started.task.parentSessionId,
+			} satisfies TaskToolDetails;
 			onUpdate?.({
 				content: [{ type: "text", text: `task ${started.task.taskId} running` }],
-				details: { task_id: started.task.taskId, status: started.task.status },
+				details: startedDetails,
 			});
 
 			if (background) {
+				const parts = [
+					`Started background task ${started.task.taskId}`,
+					`agent:${started.task.agentType}`,
+					`mode:${started.task.executionMode}`,
+				];
+				if (started.task.model !== undefined) parts.push(`model:${started.task.model}`);
 				return {
 					content: [
 						{
 							type: "text",
-							text: `Started background task ${started.task.taskId}. Use task_status to inspect it.`,
+							text: `${parts.join(" ")}. Use task_status to inspect it.`,
 						},
 					],
-					details: { task_id: started.task.taskId, status: started.task.status },
+					details: startedDetails,
 				};
 			}
 
@@ -122,7 +159,15 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 			const text = completed.finalResponse ?? completed.lastError?.message ?? `Task ${completed.status}`;
 			return {
 				content: [{ type: "text", text }],
-				details: { task_id: completed.taskId, status: completed.status },
+				details: {
+					task_id: completed.taskId,
+					status: completed.status,
+					agent_type: completed.agentType,
+					...(completed.agentMode !== undefined && { agent_mode: completed.agentMode }),
+					execution_mode: completed.executionMode,
+					...(completed.model !== undefined && { model: completed.model }),
+					parent_session_id: completed.parentSessionId,
+				},
 			};
 		},
 	};

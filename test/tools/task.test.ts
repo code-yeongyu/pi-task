@@ -78,6 +78,14 @@ describe("task tool", () => {
 		expect(statusResult.content[0]?.type === "text" ? statusResult.content[0].text : "").toContain(
 			"Background final",
 		);
+		expect(statusResult.details).toMatchObject({
+			task_id: result.details.task_id,
+			status: "completed",
+			final_response: "Background final",
+			execution_mode: "in-process",
+			agent_type: "finder",
+			model_attempts: [{ model: "inherit", status: "completed" }],
+		});
 	});
 
 	it("#given default agent config #when fields are omitted #then applies frontmatter defaults", async () => {
@@ -117,9 +125,106 @@ describe("task tool", () => {
 		const stored = manager.get(result.details.task_id);
 
 		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain("Started background task");
+		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain("agent:default");
+		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain("mode:process");
+		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain("model:provider/a");
+		expect(result.details).toMatchObject({
+			task_id: result.details.task_id,
+			status: "running",
+			agent_type: "default",
+			execution_mode: "process",
+			model: "provider/a",
+		});
 		expect(stored?.executionMode).toBe("process");
 		expect(stored?.model).toBe("provider/a");
 		expect(stored?.modelAttempts.map((attempt) => attempt.model)).toEqual(["provider/a", "provider/b"]);
+		backgroundResult.resolve({ status: "completed", finalResponse: "done" });
+		await manager.wait(result.details.task_id, 100);
+	});
+
+	it("#given agent tool permissions #when task starts #then stores child tool policy for runners and status", async () => {
+		const backgroundResult = deferred<RunnerResult>();
+		const manager = new TaskManager({
+			runner: {
+				async run() {
+					return await backgroundResult.promise;
+				},
+			},
+		});
+		const task = createTaskTool(manager, {
+			getActiveTools: () => ["read", "edit", "task", "custom_tool"],
+			loadAgents: async () => ({
+				finder: {
+					name: "finder",
+					mode: "subagent",
+					tools: { read: "allow", task: { writer: "allow" }, edit: "deny" },
+					permission: [
+						{ permission: "read", pattern: "*", action: "allow" },
+						{ permission: "task", pattern: "writer", action: "allow" },
+						{ permission: "edit", pattern: "*", action: "deny" },
+					],
+					allowedSubagents: [],
+					disallowedTools: ["write"],
+					disable: false,
+					prompt: "Find",
+					native: false,
+				},
+			}),
+		});
+
+		const result = await task.execute(
+			"call_tools",
+			{ prompt: "Do work", subagent_type: "finder", background: true },
+			undefined,
+			undefined,
+			createExtensionContext(),
+		);
+		const stored = manager.get(result.details.task_id);
+
+		expect(stored?.agentMode).toBe("subagent");
+		expect(stored?.toolAllowlist).toEqual(["read", "task", "task_cancel", "task_status"]);
+		expect(stored?.toolDisallowlist).toEqual(["write"]);
+		backgroundResult.resolve({ status: "completed", finalResponse: "done" });
+		await manager.wait(result.details.task_id, 100);
+	});
+
+	it("#given process agent with inherited tools and disallowed entries #when task starts #then stores active tools minus denied names", async () => {
+		const backgroundResult = deferred<RunnerResult>();
+		const manager = new TaskManager({
+			runner: {
+				async run() {
+					return await backgroundResult.promise;
+				},
+			},
+		});
+		const task = createTaskTool(manager, {
+			getActiveTools: () => ["read", "edit", "task", "custom_tool"],
+			loadAgents: async () => ({
+				finder: {
+					name: "finder",
+					mode: "subagent",
+					permission: [],
+					executionMode: "process",
+					allowedSubagents: [],
+					disallowedTools: ["edit"],
+					disable: false,
+					prompt: "Find",
+					native: false,
+				},
+			}),
+		});
+
+		const result = await task.execute(
+			"call_process_tools",
+			{ prompt: "Do work", subagent_type: "finder", background: true },
+			undefined,
+			undefined,
+			createExtensionContext(),
+		);
+		const stored = manager.get(result.details.task_id);
+
+		expect(stored?.toolAllowlist).toEqual(["read", "task", "custom_tool"]);
+		expect(stored?.toolDisallowlist).toBeUndefined();
 		backgroundResult.resolve({ status: "completed", finalResponse: "done" });
 		await manager.wait(result.details.task_id, 100);
 	});
@@ -190,6 +295,7 @@ describe("task tool", () => {
 		);
 
 		expect(result.details.status).toBe("denied");
+		expect(result.details.reason).toContain("Task nesting depth");
 		expect(manager.list()).toEqual([]);
 	});
 
