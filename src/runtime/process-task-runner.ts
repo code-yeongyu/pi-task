@@ -96,6 +96,13 @@ export class ProcessTaskRunner implements TaskRunner {
 		if (input.task.model !== undefined) {
 			args.push("--model", input.task.model);
 		}
+		if (input.task.toolAllowlist !== undefined) {
+			if (input.task.toolAllowlist.length === 0) {
+				args.push("--no-tools");
+			} else {
+				args.push("--tools", input.task.toolAllowlist.join(","));
+			}
+		}
 		args.push(buildPrompt(input.task, agent));
 		const invocation = getPiInvocation(args);
 		const result = await this.#processRunner.run({
@@ -126,6 +133,7 @@ function mapProcessResult(result: ProcessRunnerResult): RunnerResult {
 	return {
 		status: result.status,
 		...(result.pid !== undefined && { pid: result.pid }),
+		...(result.processExit !== undefined && { processExit: result.processExit }),
 		...(result.status === "completed"
 			? { finalResponse: extractAssistantTextFromJsonLines(result.finalResponse) ?? "" }
 			: { errorMessage: result.errorMessage ?? `Process task exited with status ${result.status}.` }),

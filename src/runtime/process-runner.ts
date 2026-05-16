@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { TaskStatus } from "./types.js";
+import type { ProcessExit, TaskStatus } from "./types.js";
 
 export type ProcessRunnerEvent =
 	| { type: "started"; pid: number }
@@ -24,8 +24,7 @@ export type ProcessRunnerResult = {
 	pid?: number;
 	finalResponse?: string;
 	errorMessage?: string;
-	exitCode?: number;
-	exitSignal?: NodeJS.Signals;
+	processExit?: ProcessExit;
 };
 
 export class ProcessRunner {
@@ -89,8 +88,9 @@ export class ProcessRunner {
 					resolve({
 						status: "cancelled",
 						...(pid !== undefined && { pid }),
-						...(code !== null && { exitCode: code }),
-						...(signal !== null && { exitSignal: signal }),
+						...(code !== null || signal !== null
+							? { processExit: { ...(code !== null && { code }), ...(signal !== null && { signal }) } }
+							: {}),
 						errorMessage: "Process task was cancelled.",
 					});
 					return;
@@ -99,7 +99,7 @@ export class ProcessRunner {
 					resolve({
 						status: "killed",
 						...(pid !== undefined && { pid }),
-						exitSignal: signal,
+						processExit: { signal },
 						errorMessage: `Process exited after signal ${signal}.`,
 					});
 					return;
@@ -108,7 +108,7 @@ export class ProcessRunner {
 					resolve({
 						status: "completed",
 						...(pid !== undefined && { pid }),
-						exitCode: 0,
+						processExit: { code: 0 },
 						finalResponse: stdout.trim(),
 					});
 					return;
@@ -116,7 +116,7 @@ export class ProcessRunner {
 				resolve({
 					status: "failed",
 					...(pid !== undefined && { pid }),
-					...(code !== null && { exitCode: code }),
+					...(code !== null && { processExit: { code } }),
 					errorMessage: stderr.trim() || `Process exited with code ${code ?? "unknown"}.`,
 				});
 			});

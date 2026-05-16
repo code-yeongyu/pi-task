@@ -17,6 +17,7 @@ describe("process task runner", () => {
 					return {
 						status: "completed",
 						pid: 1234,
+						processExit: { code: 0 },
 						finalResponse: JSON.stringify({
 							type: "message_end",
 							message: {
@@ -48,7 +49,93 @@ describe("process task runner", () => {
 			{ type: "heartbeat", pid: 1234 },
 		]);
 		expect(result.pid).toBe(1234);
+		expect(result.processExit).toEqual({ code: 0 });
 		expect(result.status).toBe("completed");
 		expect(result.finalResponse).toBe("Process final");
+	});
+
+	it("#given task tool allowlist #when process task runs #then passes cli tools allowlist", async () => {
+		let argsSeen: string[] = [];
+		const runner = new ProcessTaskRunner({
+			loadAgents: async () => ({}),
+			processRunner: {
+				async run(input) {
+					argsSeen = input.args;
+					return { status: "completed", finalResponse: "" };
+				},
+			},
+		});
+		const task = createTaskRecord({
+			taskId: "task_tools",
+			agentType: "default",
+			prompt: "Do it",
+			parentSessionId: "parent",
+			rootSessionId: "parent",
+			depth: 0,
+			executionMode: "process",
+			toolAllowlist: ["read", "task", "task_status"],
+		});
+
+		await runner.run({ task });
+
+		expect(argsSeen).toContain("--tools");
+		expect(argsSeen).toContain("read,task,task_status");
+		expect(argsSeen).not.toContain("--no-tools");
+	});
+
+	it("#given empty task tool allowlist #when process task runs #then disables all tools", async () => {
+		let argsSeen: string[] = [];
+		const runner = new ProcessTaskRunner({
+			loadAgents: async () => ({}),
+			processRunner: {
+				async run(input) {
+					argsSeen = input.args;
+					return { status: "completed", finalResponse: "" };
+				},
+			},
+		});
+		const task = createTaskRecord({
+			taskId: "task_no_tools",
+			agentType: "default",
+			prompt: "Do it",
+			parentSessionId: "parent",
+			rootSessionId: "parent",
+			depth: 0,
+			executionMode: "process",
+			toolAllowlist: [],
+		});
+
+		await runner.run({ task });
+
+		expect(argsSeen).toContain("--no-tools");
+		expect(argsSeen).not.toContain("--tools");
+	});
+
+	it("#given only task tool disallowlist #when process task runs #then preserves inherited cli tools", async () => {
+		let argsSeen: string[] = [];
+		const runner = new ProcessTaskRunner({
+			loadAgents: async () => ({}),
+			processRunner: {
+				async run(input) {
+					argsSeen = input.args;
+					return { status: "completed", finalResponse: "" };
+				},
+			},
+		});
+		const task = createTaskRecord({
+			taskId: "task_disallowed",
+			agentType: "default",
+			prompt: "Do it",
+			parentSessionId: "parent",
+			rootSessionId: "parent",
+			depth: 0,
+			executionMode: "process",
+			toolDisallowlist: ["edit"],
+		});
+
+		await runner.run({ task });
+
+		expect(argsSeen).not.toContain("--tools");
+		expect(argsSeen).not.toContain("--no-tools");
 	});
 });

@@ -27,6 +27,8 @@ type SessionLike = {
 		messages: readonly unknown[];
 	};
 	subscribe(listener: (event: { type: string }) => void): () => void;
+	getActiveToolNames?: () => string[];
+	setActiveToolsByName?: (toolNames: string[]) => void;
 	prompt(prompt: string): Promise<void>;
 	abort?: () => Promise<void>;
 	dispose?: () => void;
@@ -35,6 +37,8 @@ type SessionLike = {
 type CreateSessionInput = {
 	cwd: string;
 	model?: Model<Api>;
+	tools?: string[];
+	persistSession: false;
 };
 
 type InProcessRunnerOptions = {
@@ -103,7 +107,8 @@ async function createDefaultSession(input: CreateSessionInput, agentDir?: string
 		...(agentDir !== undefined && { agentDir }),
 		authStorage,
 		modelRegistry,
-		sessionManager: SessionManager.create(input.cwd),
+		sessionManager: SessionManager.inMemory(),
+		...(input.tools !== undefined && { tools: input.tools }),
 		...(model !== undefined && { model }),
 	});
 	return session;
@@ -130,7 +135,19 @@ export class InProcessRunner implements TaskRunner {
 		const model = resolveModel(input.task.model, registry);
 		const agents = await this.#loadAgents(cwd);
 		const agent = agents[input.task.agentType] ?? agents.default;
-		const session = await this.#createSession({ cwd, ...(model !== undefined && { model }) });
+		const session = await this.#createSession({
+			cwd,
+			persistSession: false,
+			...(model !== undefined && { model }),
+			...(input.task.toolAllowlist !== undefined && { tools: input.task.toolAllowlist }),
+		});
+		if (input.task.toolAllowlist === undefined && input.task.toolDisallowlist !== undefined) {
+			const activeTools = session.getActiveToolNames?.();
+			if (activeTools !== undefined) {
+				const disallowed = new Set(input.task.toolDisallowlist);
+				session.setActiveToolsByName?.(activeTools.filter((tool) => !disallowed.has(tool)));
+			}
+		}
 		registerInProcessAncestry(session.sessionId, {
 			taskId: input.task.taskId,
 			agentType: input.task.agentType,

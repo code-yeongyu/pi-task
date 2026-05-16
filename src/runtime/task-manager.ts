@@ -20,6 +20,7 @@ export type RunnerResult = {
 	status: Extract<TaskStatus, "completed" | "failed" | "cancelled" | "killed" | "lost">;
 	finalResponse?: string;
 	errorMessage?: string;
+	processExit?: TaskRecord["processExit"];
 	progress?: string[];
 	pid?: number;
 	childSessionId?: string;
@@ -32,6 +33,7 @@ export type TaskRunner = {
 export type StartTaskInput = {
 	prompt: string;
 	agentType: string;
+	agentMode?: TaskRecord["agentMode"];
 	description?: string;
 	parentSessionId: string;
 	rootSessionId?: string;
@@ -40,6 +42,8 @@ export type StartTaskInput = {
 	depth?: number;
 	model?: string;
 	models?: string[];
+	toolAllowlist?: string[];
+	toolDisallowlist?: string[];
 	executionMode?: ExecutionMode;
 	background?: boolean;
 	signal?: AbortSignal;
@@ -57,11 +61,31 @@ function nextTaskId(): string {
 	return `task_${Date.now().toString(36)}_${taskCounter}`;
 }
 
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function bridgeAbortSignal(source: AbortSignal | undefined, target: AbortController): (() => void) | undefined {
+	if (source === undefined) return undefined;
+	if (source.aborted) {
+		target.abort();
+		return undefined;
+	}
+	const abort = (): void => {
+		target.abort();
+	};
+	source.addEventListener("abort", abort, { once: true });
+	return () => {
+		source.removeEventListener("abort", abort);
+	};
+}
+
 export class TaskManager {
 	readonly #runner: TaskRunner;
 	readonly #resultStore: ResultStore | undefined;
 	readonly #logger: TaskEventLogger | undefined;
 	readonly #isPidAlive: (pid: number) => boolean;
+	readonly #onTaskChange: ((task: TaskRecord) => void) | undefined;
 	readonly #tasks = new Map<string, TaskRecord>();
 	readonly #controllers = new Map<string, AbortController>();
 	#parentModel: string | undefined;
@@ -71,11 +95,13 @@ export class TaskManager {
 		resultStore?: ResultStore;
 		logger?: TaskEventLogger;
 		isPidAlive?: (pid: number) => boolean;
+		onTaskChange?: (task: TaskRecord) => void;
 	}) {
 		this.#runner = options.runner;
 		this.#resultStore = options.resultStore;
 		this.#logger = options.logger;
 		this.#isPidAlive = options.isPidAlive ?? defaultIsPidAlive;
+		this.#onTaskChange = options.onTaskChange;
 	}
 
 	get(taskId: string): TaskRecord | undefined {
@@ -84,6 +110,14 @@ export class TaskManager {
 
 	list(): TaskRecord[] {
 		return [...this.#tasks.values()];
+	}
+
+	listForScope(scope: { sessionId?: string; taskId?: string; all?: boolean }): TaskRecord[] {
+		const tasks = this.list();
+		if (scope.all === true) return tasks;
+		if (scope.taskId !== undefined) return tasks.filter((task) => task.taskId === scope.taskId);
+		if (scope.sessionId === undefined) return tasks;
+		return tasks.filter((task) => task.parentSessionId === scope.sessionId || task.rootSessionId === scope.sessionId);
 	}
 
 	setParentModel(model: string | undefined): void {
@@ -99,6 +133,7 @@ export class TaskManager {
 		for (const task of persisted) {
 			const resumed = this.#reconcileResumedTask(task);
 			this.#tasks.set(task.taskId, resumed);
+			this.#emitTaskChange(resumed);
 			await this.#persist(resumed);
 			await this.#log(resumed.taskId, "task_resume", { status: resumed.status, reason: _options.reason });
 		}
@@ -114,6 +149,7 @@ export class TaskManager {
 		const task = createTaskRecord({
 			taskId: nextTaskId(),
 			agentType: input.agentType,
+			...(input.agentMode !== undefined && { agentMode: input.agentMode }),
 			prompt: input.prompt,
 			...(input.description !== undefined && { description: input.description }),
 			parentSessionId: input.parentSessionId,
@@ -124,33 +160,50 @@ export class TaskManager {
 			executionMode: input.executionMode ?? "in-process",
 			...(initialModel !== undefined && { model: initialModel }),
 			modelAttempts,
+			...(input.toolAllowlist !== undefined && { toolAllowlist: input.toolAllowlist }),
+			...(input.toolDisallowlist !== undefined && { toolDisallowlist: input.toolDisallowlist }),
 		});
 		const taskWithLogPath =
 			this.#logger === undefined ? task : { ...task, logPath: this.#logger.getLogPath(task.taskId) };
 		const controller = new AbortController();
 		this.#controllers.set(taskWithLogPath.taskId, controller);
+		const disconnectHostAbort = bridgeAbortSignal(input.signal, controller);
 		const running = transitionTask(taskWithLogPath, { status: "running", now: Date.now() });
 		this.#tasks.set(taskWithLogPath.taskId, running);
-		void this.#persist(running).catch(() => {});
-		void this.#log(running.taskId, "task_start", {
+		this.#emitTaskChange(running);
+		this.#persistLater(running, "task_start");
+		this.#logLater(running.taskId, "task_start", {
 			agentType: running.agentType,
 			executionMode: running.executionMode,
 			parentSessionId: running.parentSessionId,
 			model: running.model,
-		}).catch(() => {});
+		});
 
-		const runPromise = this.#runWithFallback(running, input.signal ?? controller.signal)
+		const runPromise = this.#runWithFallback(running, controller.signal)
 			.then((result) => {
+				disconnectHostAbort?.();
 				this.#controllers.delete(taskWithLogPath.taskId);
 				return result;
 			})
 			.catch((error: Error) => {
+				disconnectHostAbort?.();
 				const current = this.#tasks.get(taskWithLogPath.taskId) ?? running;
+				if (isTerminalTaskStatus(current.status)) {
+					this.#controllers.delete(taskWithLogPath.taskId);
+					void this.#log(current.taskId, "task_error_after_terminal", {
+						status: current.status,
+						message: error.message,
+					}).catch((logError) => {
+						this.#reportBackgroundError("task_error_after_terminal", current.taskId, logError);
+					});
+					return current;
+				}
 				const failed = transitionTask(current, { status: "failed", now: Date.now(), errorMessage: error.message });
 				this.#tasks.set(taskWithLogPath.taskId, failed);
+				this.#emitTaskChange(failed);
 				this.#controllers.delete(taskWithLogPath.taskId);
-				void this.#persist(failed).catch(() => {});
-				void this.#log(failed.taskId, "task_error", { message: error.message }).catch(() => {});
+				this.#persistLater(failed, "task_error");
+				this.#logLater(failed.taskId, "task_error", { message: error.message });
 				return failed;
 			});
 
@@ -190,6 +243,7 @@ export class TaskManager {
 				});
 			}
 			this.#tasks.set(current.taskId, current);
+			this.#emitTaskChange(current);
 			await this.#persist(current);
 
 			const result = await this.#runner.run({
@@ -200,6 +254,9 @@ export class TaskManager {
 				},
 			});
 			let next = this.#tasks.get(current.taskId) ?? current;
+			if (isTerminalTaskStatus(next.status)) {
+				return next;
+			}
 			for (const progress of result.progress ?? []) {
 				next = transitionTask(next, { status: next.status, now: Date.now(), progress });
 			}
@@ -237,6 +294,7 @@ export class TaskManager {
 					{ status: "retrying", now: endedAt, errorMessage: result.errorMessage },
 				);
 				this.#tasks.set(next.taskId, next);
+				this.#emitTaskChange(next);
 				await this.#persist(next);
 				await this.#log(next.taskId, "model_fallback", { from: attempt.model, next: attempts[index + 1]?.model });
 				current = next;
@@ -252,13 +310,16 @@ export class TaskManager {
 					...(result.childSessionId !== undefined && { childSessionId: result.childSessionId }),
 					...(result.finalResponse !== undefined && { finalResponse: result.finalResponse }),
 					...(result.errorMessage !== undefined && { errorMessage: result.errorMessage }),
+					...(result.processExit !== undefined && { processExit: result.processExit }),
 				},
 			);
 			this.#tasks.set(next.taskId, next);
+			this.#emitTaskChange(next);
 			await this.#persist(next);
 			await this.#log(next.taskId, "task_end", {
 				status: next.status,
 				pid: next.pid,
+				processExit: next.processExit,
 				childSessionId: next.childSessionId,
 				hasFinalResponse: next.finalResponse !== undefined,
 				errorMessage: next.lastError?.message,
@@ -272,6 +333,7 @@ export class TaskManager {
 			errorMessage: "No model attempts were available.",
 		});
 		this.#tasks.set(failed.taskId, failed);
+		this.#emitTaskChange(failed);
 		await this.#persist(failed);
 		await this.#log(failed.taskId, "task_end", { status: failed.status, errorMessage: failed.lastError?.message });
 		return failed;
@@ -292,11 +354,13 @@ export class TaskManager {
 	cancel(taskId: string, reason = "Cancelled by parent."): TaskRecord | undefined {
 		const task = this.#tasks.get(taskId);
 		if (task === undefined) return undefined;
+		if (isTerminalTaskStatus(task.status)) return task;
 		this.#controllers.get(taskId)?.abort();
 		const cancelled = transitionTask(task, { status: "cancelled", now: Date.now(), errorMessage: reason });
 		this.#tasks.set(taskId, cancelled);
-		void this.#persist(cancelled).catch(() => {});
-		void this.#log(taskId, "task_cancel", { reason }).catch(() => {});
+		this.#emitTaskChange(cancelled);
+		this.#persistLater(cancelled, "task_cancel");
+		this.#logLater(taskId, "task_cancel", { reason });
 		return cancelled;
 	}
 
@@ -322,12 +386,13 @@ export class TaskManager {
 			next = transitionTask(task, { status: task.status, now, progress: update.message });
 		}
 		this.#tasks.set(taskId, next);
-		void this.#persist(next).catch(() => {});
-		void this.#log(taskId, "task_update", {
+		this.#emitTaskChange(next);
+		this.#persistLater(next, "task_update");
+		this.#logLater(taskId, "task_update", {
 			type: update.type,
 			...(next.pid !== undefined && { pid: next.pid }),
 			...(next.heartbeatAt !== undefined && { heartbeatAt: next.heartbeatAt }),
-		}).catch(() => {});
+		});
 	}
 
 	async #log(taskId: string, type: string, data?: Record<string, unknown>): Promise<void> {
@@ -337,6 +402,26 @@ export class TaskManager {
 			timestamp: Date.now(),
 			...(data !== undefined && { data }),
 		});
+	}
+
+	#persistLater(task: TaskRecord, action: string): void {
+		void this.#persist(task).catch((error) => {
+			this.#reportBackgroundError(`persist:${action}`, task.taskId, error);
+		});
+	}
+
+	#logLater(taskId: string, type: string, data?: Record<string, unknown>): void {
+		void this.#log(taskId, type, data).catch((error) => {
+			this.#reportBackgroundError(`log:${type}`, taskId, error);
+		});
+	}
+
+	#reportBackgroundError(action: string, taskId: string, error: unknown): void {
+		console.error(`[pi-task] ${action} failed for ${taskId}: ${errorMessage(error)}`);
+	}
+
+	#emitTaskChange(task: TaskRecord): void {
+		this.#onTaskChange?.(task);
 	}
 
 	#reconcileResumedTask(task: TaskRecord): TaskRecord {

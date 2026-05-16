@@ -23,5 +23,6 @@ describe("process runner", () => {
 		expect(pid).toBeTypeOf("number");
 		expect(result.status).toBe("killed");
 		expect(result.pid).toBe(pid);
+		expect(result.processExit).toEqual({ signal: "SIGTERM" });
 	});
 });

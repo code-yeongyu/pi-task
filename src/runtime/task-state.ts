@@ -9,6 +9,7 @@ type TransitionInput = {
 	finalResponse?: string;
 	errorMessage?: string;
 	errorCode?: string;
+	processExit?: TaskRecord["processExit"];
 	heartbeatAt?: number;
 	model?: string;
 };
@@ -42,6 +43,7 @@ export function createTaskRecord(input: CreateTaskRecordInput): TaskRecord {
 	return {
 		taskId: input.taskId,
 		agentType: input.agentType,
+		...(input.agentMode !== undefined && { agentMode: input.agentMode }),
 		prompt: input.prompt,
 		...(input.description !== undefined && { description: input.description }),
 		parentSessionId: input.parentSessionId,
@@ -57,6 +59,9 @@ export function createTaskRecord(input: CreateTaskRecordInput): TaskRecord {
 		updatedAt: now,
 		...(input.model !== undefined && { model: input.model }),
 		modelAttempts: input.modelAttempts ?? [],
+		...(input.processExit !== undefined && { processExit: input.processExit }),
+		...(input.toolAllowlist !== undefined && { toolAllowlist: input.toolAllowlist }),
+		...(input.toolDisallowlist !== undefined && { toolDisallowlist: input.toolDisallowlist }),
 		progress: [],
 		resumeState: "fresh",
 	};
@@ -78,6 +83,7 @@ export function transitionTask(task: TaskRecord, input: TransitionInput): TaskRe
 		...(input.heartbeatAt !== undefined && { heartbeatAt: input.heartbeatAt }),
 		...(input.model !== undefined && { model: input.model }),
 		...(input.finalResponse !== undefined && { finalResponse: input.finalResponse }),
+		...(input.processExit !== undefined && { processExit: input.processExit }),
 	};
 
 	if (input.status === "running" && task.startedAt === undefined) {

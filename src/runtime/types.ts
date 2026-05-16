@@ -22,6 +22,11 @@ export type TaskError = {
 	at: number;
 };
 
+export type ProcessExit = {
+	code?: number;
+	signal?: string;
+};
+
 export type ModelAttempt = {
 	model: string;
 	status: "pending" | "running" | "failed" | "completed";
@@ -33,6 +38,7 @@ export type ModelAttempt = {
 export type TaskRecord = {
 	taskId: string;
 	agentType: string;
+	agentMode?: AgentMode;
 	prompt: string;
 	description?: string;
 	parentSessionId: string;
@@ -50,6 +56,9 @@ export type TaskRecord = {
 	endedAt?: number;
 	model?: string;
 	modelAttempts: ModelAttempt[];
+	processExit?: ProcessExit;
+	toolAllowlist?: string[];
+	toolDisallowlist?: string[];
 	heartbeatAt?: number;
 	progress: string[];
 	finalResponse?: string;
@@ -61,6 +70,7 @@ export type TaskRecord = {
 export type CreateTaskRecordInput = {
 	taskId: string;
 	agentType: string;
+	agentMode?: AgentMode;
 	prompt: string;
 	description?: string;
 	parentSessionId: string;
@@ -73,5 +83,8 @@ export type CreateTaskRecordInput = {
 	pid?: number;
 	model?: string;
 	modelAttempts?: ModelAttempt[];
+	processExit?: ProcessExit;
+	toolAllowlist?: string[];
+	toolDisallowlist?: string[];
 	now?: number;
 };
