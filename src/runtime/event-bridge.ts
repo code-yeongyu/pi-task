@@ -1,19 +1,22 @@
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { StatusUiContext } from "../ui/status.js";
 import type { TaskManager } from "./task-manager.js";
 
 const ENTRY_TYPE = "pi-task.event";
 const GUIDANCE =
 	"\n\npi-task: Use task for delegated subagent work. Use task_status to inspect background final responses, errors, resume state, pids, and killed/lost process states. Use task_cancel to stop running subagents.";
 
-type Handler = (event: Record<string, unknown>, ctx: Record<string, unknown>) => Promise<unknown> | unknown;
+export type BridgeContext = StatusUiContext & Pick<ExtensionContext, "cwd">;
+type Handler = (event: Record<string, unknown>, ctx: BridgeContext) => Promise<unknown> | unknown;
 
-type PiEventBridgeApi = {
+export type PiEventBridgeApi = {
 	on: (eventName: string, handler: Handler) => void;
-	appendEntry?: (customType: string, data?: Record<string, unknown>) => void;
+	appendEntry?: ExtensionAPI["appendEntry"];
 };
 
 type BridgeDeps = {
 	manager: Pick<TaskManager, "resume" | "setParentModel">;
-	syncStatus: (ctx: Record<string, unknown>) => void;
+	syncStatus: (ctx: BridgeContext) => void;
 	getParentModel: () => string | undefined;
 };
 

@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { Key } from "@mariozechner/pi-tui";
 import { getSenpiAgentDir, getTaskStateDir } from "./config/paths.js";
 import { CompositeTaskRunner } from "./runtime/composite-runner.js";
-import { installTaskEventBridge } from "./runtime/event-bridge.js";
+import { installTaskEventBridge, type PiEventBridgeApi } from "./runtime/event-bridge.js";
 import { InProcessRunner } from "./runtime/in-process-runner.js";
 import { ProcessTaskRunner } from "./runtime/process-task-runner.js";
 import { ResultStore } from "./runtime/result-store.js";
@@ -14,6 +14,9 @@ import { createTaskStatusTool } from "./tools/task-status.js";
 import { formatTaskList, syncTaskStatusToUi } from "./ui/status.js";
 
 export { clearRegisteredAgents, defineAgent, registerAgent } from "./agents/code-agents.js";
+
+type PiTaskExtensionApi = Pick<ExtensionAPI, "registerTool" | "registerCommand" | "registerShortcut"> &
+	PiEventBridgeApi;
 
 function isCancellableStatus(status: string): boolean {
 	return status === "queued" || status === "running" || status === "retrying";
@@ -44,7 +47,7 @@ async function cancelTaskFromUi(manager: TaskManager, ctx: ExtensionContext): Pr
 	syncTaskStatusToUi(manager, ctx);
 }
 
-export default function piTaskExtension(pi: ExtensionAPI): void {
+export default function piTaskExtension(pi: PiTaskExtensionApi): void {
 	const stateDir = getTaskStateDir();
 	const agentDir = getSenpiAgentDir();
 	const manager = new TaskManager({
@@ -60,9 +63,9 @@ export default function piTaskExtension(pi: ExtensionAPI): void {
 	pi.registerTool(createTaskStatusTool(manager));
 	pi.registerTool(createTaskCancelTool(manager));
 
-	installTaskEventBridge(pi as unknown as Parameters<typeof installTaskEventBridge>[0], {
+	installTaskEventBridge(pi, {
 		manager,
-		syncStatus: (ctx) => syncTaskStatusToUi(manager, ctx as unknown as ExtensionContext),
+		syncStatus: (ctx) => syncTaskStatusToUi(manager, ctx),
 		getParentModel: () => manager.getParentModel(),
 	});
 

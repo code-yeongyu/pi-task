@@ -1,7 +1,17 @@
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import type { TaskManager } from "../runtime/task-manager.js";
 import { isTerminalTaskStatus } from "../runtime/task-state.js";
 import type { TaskRecord } from "../runtime/types.js";
+
+export type StatusUiContext = {
+	hasUI: boolean;
+	ui: {
+		setStatus: (key: string, value: string | undefined) => void;
+		setWidget: (key: string, value: string[] | undefined, options?: { placement: "belowEditor" }) => void;
+		theme: {
+			fg: (color: "accent", value: string) => string;
+		};
+	};
+};
 
 function shortTask(task: TaskRecord): string {
 	const parts = [task.taskId, task.agentType, task.status, task.executionMode];
@@ -30,7 +40,7 @@ export function formatFooterStatus(manager: TaskManager): string | undefined {
 	return pieces.join(" ");
 }
 
-export function syncTaskStatusToUi(manager: TaskManager, ctx: ExtensionContext): void {
+export function syncTaskStatusToUi(manager: TaskManager, ctx: StatusUiContext): void {
 	if (!ctx.hasUI) return;
 	const status = formatFooterStatus(manager);
 	ctx.ui.setStatus("pi-task", status === undefined ? undefined : ctx.ui.theme.fg("accent", status));

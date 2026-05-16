@@ -1,4 +1,3 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
 import piTaskExtension from "../src/index.js";
@@ -24,7 +23,7 @@ describe("pi-task extension entrypoint", () => {
 			},
 		};
 
-		piTaskExtension(pi as unknown as ExtensionAPI);
+		piTaskExtension(pi);
 
 		expect(tools).toEqual(expect.arrayContaining(["task", "task_status", "task_cancel"]));
 		expect(commands).toEqual(expect.arrayContaining(["tasks", "task-kill"]));
