@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 import type { TaskStatus } from "./types.js";
 
-export type ProcessRunnerEvent = { type: "started"; pid: number } | { type: "stderr"; text: string };
+export type ProcessRunnerEvent =
+	| { type: "started"; pid: number }
+	| { type: "heartbeat"; pid: number }
+	| { type: "stderr"; text: string };
 
 export type ProcessRunnerInput = {
 	taskId: string;
@@ -45,9 +48,22 @@ export class ProcessRunner {
 			let stdout = "";
 			let stderr = "";
 			let aborted = false;
+			let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+			const stopHeartbeat = (): void => {
+				if (heartbeatTimer !== undefined) {
+					clearInterval(heartbeatTimer);
+					heartbeatTimer = undefined;
+				}
+			};
 
 			if (child.pid !== undefined) {
 				input.onEvent?.({ type: "started", pid: child.pid });
+				input.onEvent?.({ type: "heartbeat", pid: child.pid });
+				const pid = child.pid;
+				heartbeatTimer = setInterval(() => {
+					input.onEvent?.({ type: "heartbeat", pid });
+				}, 1_000);
 			}
 
 			child.stdout?.on("data", (chunk: Buffer) => {
@@ -59,6 +75,7 @@ export class ProcessRunner {
 				input.onEvent?.({ type: "stderr", text });
 			});
 			child.on("error", (error) => {
+				stopHeartbeat();
 				resolve({
 					status: "failed",
 					...(child.pid !== undefined && { pid: child.pid }),
@@ -66,6 +83,7 @@ export class ProcessRunner {
 				});
 			});
 			child.on("close", (code, signal) => {
+				stopHeartbeat();
 				const pid = child.pid;
 				if (aborted) {
 					resolve({

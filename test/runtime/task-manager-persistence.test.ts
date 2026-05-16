@@ -71,4 +71,40 @@ describe("task manager persistence", () => {
 		expect(restored?.status).toBe("lost");
 		expect(restored?.lastError?.message).toContain("cannot be observed");
 	});
+
+	it("#given running process task #when runner reports pid and heartbeat #then status and store are updated before completion", async () => {
+		const store = await makeStore();
+		let finish: ((value: { status: "completed"; finalResponse: string }) => void) | undefined;
+		const manager = new TaskManager({
+			resultStore: store,
+			runner: {
+				async run({ onUpdate }) {
+					onUpdate?.({ type: "pid", pid: 4321 });
+					onUpdate?.({ type: "heartbeat", pid: 4321 });
+					return await new Promise((resolve) => {
+						finish = resolve;
+					});
+				},
+			},
+		});
+		const started = manager.start({
+			prompt: "work",
+			agentType: "finder",
+			parentSessionId: "parent",
+			executionMode: "process",
+			background: true,
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		const running = manager.get(started.task.taskId);
+		const persisted = await store.load(started.task.taskId);
+		expect(running?.pid).toBe(4321);
+		expect(running?.heartbeatAt).toBeTypeOf("number");
+		expect(persisted?.pid).toBe(4321);
+		expect(persisted?.heartbeatAt).toBeTypeOf("number");
+
+		finish?.({ status: "completed", finalResponse: "done" });
+		await started.promise;
+	});
 });

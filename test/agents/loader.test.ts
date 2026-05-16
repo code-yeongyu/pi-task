@@ -55,4 +55,25 @@ describe("agent loader", () => {
 		expect(agents.reviewer?.description).toBe("Reviews code");
 		expect(agents.reviewer?.prompt).toBe("Review code");
 	});
+
+	it("#given nested tools frontmatter #when loading #then builds subagent permission rules", async () => {
+		const root = await makeTempDir();
+		const home = path.join(root, "home");
+		const cwd = path.join(root, "project");
+		await mkdir(path.join(home, ".senpi", "agents", "agents"), { recursive: true });
+		await writeFile(
+			path.join(home, ".senpi", "agents", "agents", "finder.md"),
+			"---\ndescription: Finds facts\ntools:\n  task:\n    github-librarian: allow\n    web-librarian: allow\n  task:writer: deny\n---\nFind facts",
+		);
+
+		const agents = await loadAllAgents(cwd, home);
+
+		expect(agents.finder?.permission).toEqual(
+			expect.arrayContaining([
+				{ permission: "task", pattern: "github-librarian", action: "allow" },
+				{ permission: "task", pattern: "web-librarian", action: "allow" },
+				{ permission: "task:writer", pattern: "*", action: "deny" },
+			]),
+		);
+	});
 });

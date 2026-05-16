@@ -108,6 +108,15 @@ export class ProcessTaskRunner implements TaskRunner {
 			rootSessionId: input.task.rootSessionId,
 			depth: input.task.depth,
 			signal: input.signal,
+			onEvent: (event) => {
+				if (event.type === "started") {
+					input.onUpdate?.({ type: "pid", pid: event.pid });
+					return;
+				}
+				if (event.type === "heartbeat") {
+					input.onUpdate?.({ type: "heartbeat", pid: event.pid });
+				}
+			},
 		} satisfies ProcessRunnerInput);
 		return mapProcessResult(result);
 	}

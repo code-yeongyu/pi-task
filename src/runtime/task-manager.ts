@@ -2,13 +2,19 @@ import { createModelAttempts, shouldRetryWithFallback } from "./model-fallback.j
 import { reconcileProcessTask } from "./process-reconcile.js";
 import type { ResultStore } from "./result-store.js";
 import type { TaskEventLogger } from "./task-logger.js";
-import { createTaskRecord, transitionTask } from "./task-state.js";
+import { createTaskRecord, isTerminalTaskStatus, transitionTask } from "./task-state.js";
 import type { ExecutionMode, TaskRecord, TaskStatus } from "./types.js";
 
 export type RunnerInput = {
 	task: TaskRecord;
 	signal?: AbortSignal;
+	onUpdate?: (update: RunnerUpdate) => void;
 };
+
+export type RunnerUpdate =
+	| { type: "pid"; pid: number }
+	| { type: "heartbeat"; pid?: number }
+	| { type: "progress"; message: string };
 
 export type RunnerResult = {
 	status: Extract<TaskStatus, "completed" | "failed" | "cancelled" | "killed" | "lost">;
@@ -186,7 +192,13 @@ export class TaskManager {
 			this.#tasks.set(current.taskId, current);
 			await this.#persist(current);
 
-			const result = await this.#runner.run({ task: current, signal });
+			const result = await this.#runner.run({
+				task: current,
+				signal,
+				onUpdate: (update) => {
+					this.#applyRunnerUpdate(current.taskId, update);
+				},
+			});
 			let next = this.#tasks.get(current.taskId) ?? current;
 			for (const progress of result.progress ?? []) {
 				next = transitionTask(next, { status: next.status, now: Date.now(), progress });
@@ -290,6 +302,32 @@ export class TaskManager {
 
 	async #persist(task: TaskRecord): Promise<void> {
 		await this.#resultStore?.save(task);
+	}
+
+	#applyRunnerUpdate(taskId: string, update: RunnerUpdate): void {
+		const task = this.#tasks.get(taskId);
+		if (task === undefined || isTerminalTaskStatus(task.status)) return;
+		const now = Date.now();
+		let next = task;
+		if (update.type === "pid") {
+			next = transitionTask(task, { status: task.status, now, pid: update.pid, heartbeatAt: now });
+		} else if (update.type === "heartbeat") {
+			next = transitionTask(task, {
+				status: task.status,
+				now,
+				heartbeatAt: now,
+				...(update.pid !== undefined && { pid: update.pid }),
+			});
+		} else {
+			next = transitionTask(task, { status: task.status, now, progress: update.message });
+		}
+		this.#tasks.set(taskId, next);
+		void this.#persist(next).catch(() => {});
+		void this.#log(taskId, "task_update", {
+			type: update.type,
+			...(next.pid !== undefined && { pid: next.pid }),
+			...(next.heartbeatAt !== undefined && { heartbeatAt: next.heartbeatAt }),
+		}).catch(() => {});
 	}
 
 	async #log(taskId: string, type: string, data?: Record<string, unknown>): Promise<void> {

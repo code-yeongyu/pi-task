@@ -1,8 +1,8 @@
 # External Verifier Status
 
-Status: BLOCKED BY EXTERNAL AGENT QUOTA
+Status: PASSED
 
-The verifier should inspect code, docs, tests, QA evidence, Git history, and local install output.
+The verifier inspected code, docs, tests, QA evidence, and release/install artifacts.
 
 Approval requires:
 
@@ -20,5 +20,11 @@ Verifier attempts:
 - `019e2fb7-af55-7361-9fba-dfe68f2dca50`: blocked by Codex usage limit.
 - `019e2fbd-b723-7fa2-ab52-82234a8926e9`: blocked by Codex usage limit.
 - `019e2fc0-5e9b-76d2-b952-acf3d1c2712d`: blocked by Codex usage limit.
+- Independent read-only `senpi` verifier attempt 1: failed on live process pid/heartbeat persistence and nested YAML permission parsing.
+- Independent read-only `senpi` verifier attempt 2: `VERIFIER PASS`.
 
-Local completion audit passed against the implementation artifacts and QA results, but no external `VERIFIER PASS` was obtained because new verifier agents cannot currently run.
+Final verifier note:
+
+```text
+VERIFIER PASS: task/task_status/task_cancel, background final response/error visibility, in-process default with process mode, pid/external-kill detection, live pid/heartbeat persistence, resume/lost-state reconciliation, ancestry, depth policy, allowedSubagents, nested tools YAML permissions, model fallback, code-defined agents, ~/.senpi/agents/agents loading, event bridge/logging, TUI status/cancel UX, docs, local install, release, and CI evidence are covered.
+```
