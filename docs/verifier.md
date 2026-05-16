@@ -13,4 +13,4 @@ Approval requires:
 - Pi lifecycle/tool events are mapped in code and task logs redact sensitive fields.
 - Process mode records pid and external kill evidence.
 - In-process is the default.
-- Permissions, agent schema, and model fallback match `docs/spec.md`.
+- Permissions, default depth, allowed-subagent override, agent schema, code-defined agents, and model fallback match `docs/spec.md`.

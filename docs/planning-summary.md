@@ -22,6 +22,8 @@ Primary implementation choices:
 
 - In-process is the default runner.
 - Process mode is explicit through agent frontmatter or tool params.
+- Nested task depth is enforced before starting a task; `allowedSubagents` overrides the default max depth.
+- Agents can be markdown-loaded or code-registered.
 - Background state is first-class and retrievable by `task_status`.
 - Final responses and errors are persisted before the manager reports completion.
 - Abrupt process termination is represented as `killed`; unobservable resumed process tasks become `lost`.

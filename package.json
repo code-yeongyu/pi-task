@@ -1,6 +1,6 @@
 {
 	"name": "pi-task",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Task subagent extension for the pi coding agent with background lifecycle visibility, resume, process supervision, and final-result retrieval.",
 	"type": "module",
 	"license": "MIT",

@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { clearInProcessAncestry, registerInProcessAncestry } from "../../src/runtime/ancestry.js";
 import { TaskManager } from "../../src/runtime/task-manager.js";
 import { createTaskTool } from "../../src/tools/task.js";
 import { createTaskStatusTool } from "../../src/tools/task-status.js";
@@ -11,6 +12,10 @@ function createExtensionContext(): ExtensionContext {
 		model: undefined,
 	} as ExtensionContext;
 }
+
+afterEach(() => {
+	clearInProcessAncestry("parent");
+});
 
 describe("task tool", () => {
 	it("#given foreground task #when executed #then returns final response and persists status", async () => {
@@ -108,5 +113,90 @@ describe("task tool", () => {
 		expect(stored?.executionMode).toBe("process");
 		expect(stored?.model).toBe("provider/a");
 		expect(stored?.modelAttempts.map((attempt) => attempt.model)).toEqual(["provider/a", "provider/b"]);
+	});
+
+	it("#given nested task beyond default depth #when parent does not allow target #then denies delegation", async () => {
+		const manager = new TaskManager({
+			runner: {
+				async run() {
+					return { status: "completed", finalResponse: "should not run" };
+				},
+			},
+		});
+		registerInProcessAncestry("parent", {
+			taskId: "task_parent",
+			agentType: "finder",
+			parentSessionId: "root",
+			rootSessionId: "root",
+			depth: 1,
+		});
+		const task = createTaskTool(manager, {
+			loadAgents: async () => ({
+				finder: {
+					name: "finder",
+					mode: "all",
+					permission: [],
+					allowedSubagents: [],
+					disallowedTools: [],
+					disable: false,
+					prompt: "Find",
+					native: false,
+				},
+			}),
+		});
+
+		const result = await task.execute(
+			"call_5",
+			{ prompt: "Do nested", subagent_type: "writer" },
+			undefined,
+			undefined,
+			createExtensionContext(),
+		);
+
+		expect(result.details.status).toBe("denied");
+		expect(manager.list()).toEqual([]);
+	});
+
+	it("#given nested task beyond default depth #when parent allowlists target #then starts task", async () => {
+		const manager = new TaskManager({
+			runner: {
+				async run() {
+					return { status: "completed", finalResponse: "allowed" };
+				},
+			},
+		});
+		registerInProcessAncestry("parent", {
+			taskId: "task_parent",
+			agentType: "finder",
+			parentSessionId: "root",
+			rootSessionId: "root",
+			depth: 1,
+		});
+		const task = createTaskTool(manager, {
+			loadAgents: async () => ({
+				finder: {
+					name: "finder",
+					mode: "all",
+					permission: [],
+					allowedSubagents: ["writer"],
+					disallowedTools: [],
+					disable: false,
+					prompt: "Find",
+					native: false,
+				},
+			}),
+		});
+
+		const result = await task.execute(
+			"call_6",
+			{ prompt: "Do nested", subagent_type: "writer" },
+			undefined,
+			undefined,
+			createExtensionContext(),
+		);
+
+		expect(result.details.status).toBe("completed");
+		expect(manager.get(result.details.task_id)?.depth).toBe(2);
+		expect(manager.get(result.details.task_id)?.rootSessionId).toBe("root");
 	});
 });

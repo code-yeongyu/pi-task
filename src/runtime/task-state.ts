@@ -48,6 +48,7 @@ export function createTaskRecord(input: CreateTaskRecordInput): TaskRecord {
 		rootSessionId: input.rootSessionId,
 		...(input.childSessionId !== undefined && { childSessionId: input.childSessionId }),
 		...(input.cwd !== undefined && { cwd: input.cwd }),
+		...(input.parentAgentType !== undefined && { parentAgentType: input.parentAgentType }),
 		depth: input.depth,
 		executionMode: input.executionMode,
 		...(input.pid !== undefined && { pid: input.pid }),

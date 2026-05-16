@@ -12,7 +12,7 @@ gh repo edit code-yeongyu/pi-task --description "Task subagent extension for pi"
 Release setup:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
-gh release create v0.1.0 --generate-notes
+git tag v0.1.1
+git push origin v0.1.1
+gh release create v0.1.1 --generate-notes
 ```

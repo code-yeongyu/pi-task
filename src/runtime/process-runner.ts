@@ -5,6 +5,10 @@ export type ProcessRunnerEvent = { type: "started"; pid: number } | { type: "std
 
 export type ProcessRunnerInput = {
 	taskId: string;
+	agentType?: string;
+	parentSessionId?: string;
+	rootSessionId?: string;
+	depth?: number;
 	command: string;
 	args: string[];
 	cwd?: string;
@@ -29,6 +33,11 @@ export class ProcessRunner {
 				env: {
 					...process.env,
 					PI_TASK_ID: input.taskId,
+					...(input.agentType !== undefined && { PI_TASK_AGENT_TYPE: input.agentType }),
+					...(input.parentSessionId !== undefined && { PI_TASK_PARENT_SESSION_ID: input.parentSessionId }),
+					...(input.rootSessionId !== undefined && { PI_TASK_ROOT_SESSION_ID: input.rootSessionId }),
+					...(input.depth !== undefined && { PI_TASK_DEPTH: String(input.depth) }),
+					PI_TASK_PARENT_TASK_ID: input.taskId,
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 				shell: false,

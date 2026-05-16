@@ -8,6 +8,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { loadAllAgents } from "../agents/loader.js";
 import type { AgentInfo } from "../agents/schema.js";
+import { clearInProcessAncestry, registerInProcessAncestry } from "./ancestry.js";
 import type { RunnerInput, RunnerResult, TaskRunner } from "./task-manager.js";
 
 type TextBlock = {
@@ -130,6 +131,13 @@ export class InProcessRunner implements TaskRunner {
 		const agents = await this.#loadAgents(cwd);
 		const agent = agents[input.task.agentType] ?? agents.default;
 		const session = await this.#createSession({ cwd, ...(model !== undefined && { model }) });
+		registerInProcessAncestry(session.sessionId, {
+			taskId: input.task.taskId,
+			agentType: input.task.agentType,
+			parentSessionId: input.task.parentSessionId,
+			rootSessionId: input.task.rootSessionId,
+			depth: input.task.depth,
+		});
 		let aborted = false;
 		const abort = (): void => {
 			aborted = true;
@@ -160,6 +168,7 @@ export class InProcessRunner implements TaskRunner {
 			};
 		} finally {
 			session.dispose?.();
+			clearInProcessAncestry(session.sessionId);
 		}
 	}
 }

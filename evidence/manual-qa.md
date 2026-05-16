@@ -13,6 +13,7 @@ Verified manually:
 - `npm run qa:import` loads the extension default export.
 - `npm run qa:process-kill` records pid and reports `killed` after direct external `SIGTERM`.
 - `npm run qa:senpi-install` resolves the local install symlink target.
+- `npm test` now covers 19 files / 37 tests, including nested task policy and code-defined agents.
 - `senpi --help` confirms `senpi install <source>` and `--extension/-e` host support.
 - `command -v pi` returned no binary on this machine, so local host checks use `senpi`.
 

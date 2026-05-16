@@ -13,6 +13,7 @@ export type AgentInfo = {
 	background?: boolean;
 	executionMode?: ExecutionMode;
 	maxTurns?: number;
+	maxDepth?: number;
 	allowedSubagents: string[];
 	disallowedTools: string[];
 	disable: boolean;
@@ -77,6 +78,7 @@ export function validateAgentConfig(name: string, frontmatter: unknown, body: st
 	const temperature = typeof source.temperature === "number" ? source.temperature : undefined;
 	const background = typeof source.background === "boolean" ? source.background : undefined;
 	const maxTurns = typeof source.maxTurns === "number" ? source.maxTurns : undefined;
+	const maxDepth = typeof source.maxDepth === "number" ? source.maxDepth : undefined;
 	const executionMode = readExecutionMode(source.executionMode);
 
 	return {
@@ -93,6 +95,7 @@ export function validateAgentConfig(name: string, frontmatter: unknown, body: st
 			...(background !== undefined && { background }),
 			...(executionMode !== undefined && { executionMode }),
 			...(maxTurns !== undefined && { maxTurns }),
+			...(maxDepth !== undefined && { maxDepth }),
 			allowedSubagents: allowedSubagents.value ?? [],
 			disallowedTools: disallowedTools.value ?? [],
 			disable: source.disable === true,

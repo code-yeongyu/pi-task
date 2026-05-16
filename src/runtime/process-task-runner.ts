@@ -103,6 +103,10 @@ export class ProcessTaskRunner implements TaskRunner {
 			args: invocation.args,
 			cwd,
 			taskId: input.task.taskId,
+			agentType: input.task.agentType,
+			parentSessionId: input.task.parentSessionId,
+			rootSessionId: input.task.rootSessionId,
+			depth: input.task.depth,
 			signal: input.signal,
 		} satisfies ProcessRunnerInput);
 		return mapProcessResult(result);

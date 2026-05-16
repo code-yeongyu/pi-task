@@ -39,6 +39,7 @@ export type TaskRecord = {
 	rootSessionId: string;
 	childSessionId?: string;
 	cwd?: string;
+	parentAgentType?: string;
 	depth: number;
 	executionMode: ExecutionMode;
 	pid?: number;
@@ -66,6 +67,7 @@ export type CreateTaskRecordInput = {
 	rootSessionId: string;
 	childSessionId?: string;
 	cwd?: string;
+	parentAgentType?: string;
 	depth: number;
 	executionMode: ExecutionMode;
 	pid?: number;

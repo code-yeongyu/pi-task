@@ -9,7 +9,7 @@ Core rule: background task errors, abrupt process exits, resume state, and final
 ## Components
 
 - `agents`: markdown agent registry with pi/senpi-compatible search paths.
-- `permissions`: senpi-compatible last-match-wins rule evaluation.
+- `permissions`: senpi-compatible last-match-wins rule evaluation for task policy.
 - `runtime`: task state, result store, runners, resume reconciliation, and model fallback.
 - `tools`: `task`, `task_status`, `task_cancel`.
 - `ui`: compact status and widget rendering.
@@ -21,6 +21,18 @@ In-process mode is the default. `InProcessRunner` creates a child `AgentSession`
 Process mode uses `ProcessTaskRunner` and `ProcessRunner`. It launches a separate `senpi`/current-runtime process in JSON print mode, includes task id, parent/root session ids, and subagent type in the prompt, records the child pid, parses the final assistant response from JSON lines, and reports `killed` when the process exits by signal.
 
 `CompositeTaskRunner` routes by `task.executionMode`, so both modes share persistence, logging, cancellation, status UI, and fallback handling.
+
+## Agent Definition And Task Policy
+
+Markdown agents are loaded from project and user `.pi` / `.senpi` locations, including `~/.senpi/agents/agents`. Code can also define agents by importing `defineAgent()` or `registerAgent()` from `pi-task`.
+
+Nested tasks are enforced before a task record is created:
+
+- Top-level parent sessions may create depth-1 tasks.
+- Default `maxDepth` is `1`.
+- A parent agent's `allowedSubagents` permits the named target even beyond depth.
+- Frontmatter task permissions can allow or deny `task:<agent>` or `task` patterns.
+- Denied delegations return a `denied` status and do not start a runner.
 
 ## Persistence And Resume
 

@@ -13,6 +13,8 @@ import { createTaskCancelTool } from "./tools/task-cancel.js";
 import { createTaskStatusTool } from "./tools/task-status.js";
 import { formatTaskList, syncTaskStatusToUi } from "./ui/status.js";
 
+export { clearRegisteredAgents, defineAgent, registerAgent } from "./agents/code-agents.js";
+
 function isCancellableStatus(status: string): boolean {
 	return status === "queued" || status === "running" || status === "retrying";
 }

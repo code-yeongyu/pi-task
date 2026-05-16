@@ -29,6 +29,7 @@ export type StartTaskInput = {
 	description?: string;
 	parentSessionId: string;
 	rootSessionId?: string;
+	parentAgentType?: string;
 	cwd?: string;
 	depth?: number;
 	model?: string;
@@ -111,6 +112,7 @@ export class TaskManager {
 			...(input.description !== undefined && { description: input.description }),
 			parentSessionId: input.parentSessionId,
 			rootSessionId: input.rootSessionId ?? input.parentSessionId,
+			...(input.parentAgentType !== undefined && { parentAgentType: input.parentAgentType }),
 			...(input.cwd !== undefined && { cwd: input.cwd }),
 			depth: input.depth ?? 0,
 			executionMode: input.executionMode ?? "in-process",

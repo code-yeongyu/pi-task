@@ -2,12 +2,15 @@ import type { AgentToolResult, ExtensionContext } from "@mariozechner/pi-coding-
 import { Type } from "typebox";
 import { loadAllAgents } from "../agents/loader.js";
 import type { AgentInfo } from "../agents/schema.js";
+import { getEnvironmentAncestry, getInProcessAncestry } from "../runtime/ancestry.js";
 import type { TaskManager } from "../runtime/task-manager.js";
+import { decideTaskPolicy } from "../runtime/task-policy.js";
 import type { ExecutionMode } from "../runtime/types.js";
 
 export type TaskToolDetails = {
 	task_id: string;
 	status: string;
+	reason?: string;
 };
 
 export const TaskToolParams = Type.Object({
@@ -24,6 +27,10 @@ type CreateTaskToolOptions = {
 
 function getParentSessionId(ctx: ExtensionContext): string {
 	return ctx.sessionManager.getSessionId();
+}
+
+function getCurrentAncestry(ctx: ExtensionContext) {
+	return getInProcessAncestry(getParentSessionId(ctx)) ?? getEnvironmentAncestry();
 }
 
 export function createTaskTool(manager: TaskManager, options: CreateTaskToolOptions = {}) {
@@ -56,13 +63,32 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 			const agents: Record<string, AgentInfo> = await loadAgents(ctx.cwd).catch(() => ({}));
 			const agentType = params.subagent_type ?? "default";
 			const agent = agents[agentType] ?? (agentType === "default" ? agents.default : undefined);
+			const ancestry = getCurrentAncestry(ctx);
+			const parentAgent = ancestry === undefined ? undefined : agents[ancestry.agentType];
+			const policy = decideTaskPolicy({
+				targetAgentType: agentType,
+				...(ancestry !== undefined && { ancestry }),
+				...(parentAgent !== undefined && { parentAgent }),
+			});
+			if (!policy.allowed) {
+				return {
+					content: [{ type: "text", text: `Task delegation denied: ${policy.reason}` }],
+					details: { task_id: "", status: "denied", reason: policy.reason },
+				};
+			}
 			const background = params.background ?? agent?.background ?? false;
 			const executionMode = params.execution_mode ?? agent?.executionMode;
+			const parentSessionId = getParentSessionId(ctx);
+			const rootSessionId = ancestry?.rootSessionId ?? parentSessionId;
+			const depth = (ancestry?.depth ?? 0) + 1;
 			const started = manager.start({
 				prompt: params.prompt,
 				agentType,
 				...(params.description !== undefined && { description: params.description }),
-				parentSessionId: getParentSessionId(ctx),
+				parentSessionId,
+				rootSessionId,
+				parentAgentType: ancestry?.agentType,
+				depth,
 				cwd: ctx.cwd,
 				...(executionMode !== undefined && { executionMode }),
 				...(agent?.model !== undefined && { model: agent.model }),

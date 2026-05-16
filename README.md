@@ -12,6 +12,8 @@ Task subagent extension for the pi coding agent.
 - Session resume reconciliation through `~/.senpi/task/tasks/*.json`.
 - JSONL task logs under `~/.senpi/task/logs/*.jsonl` with secret-like fields redacted.
 - Agent frontmatter loading from `.pi`, `.senpi`, `~/.pi/agent`, `~/.senpi/agent`, and `~/.senpi/agents`.
+- Code-defined agents through `defineAgent()` and `registerAgent()`.
+- Nested task policy with default max depth `1`; `allowedSubagents` and task permissions can explicitly allow deeper calls.
 - Model fallback for `models: [provider/a, provider/b]`.
 - TUI footer/widget status plus `/tasks`, `/task-kill`, and a keyboard shortcut.
 
@@ -30,8 +32,11 @@ models:
 allowedSubagents:
   - github-librarian
   - web-librarian
+maxDepth: 1
 tools:
   read: allow
+  task:
+    "web-librarian": allow
   bash:
     "rg *": allow
 ---

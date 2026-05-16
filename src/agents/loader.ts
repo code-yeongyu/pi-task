@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { loadRegisteredAgents } from "./code-agents.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { type AgentInfo, validateAgentConfig } from "./schema.js";
 
@@ -67,5 +68,6 @@ export async function loadAllAgents(cwd: string, homeDir: string = os.homedir())
 	for (const location of getConfigLocations(cwd, homeDir)) {
 		Object.assign(agents, await loadAgentsFromDirectory(location.dir));
 	}
+	Object.assign(agents, loadRegisteredAgents());
 	return agents;
 }

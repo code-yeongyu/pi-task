@@ -4,12 +4,12 @@ Status: PASSED
 
 Command-backed evidence from May 16, 2026:
 
-- `npm test`: passed, 17 files / 30 tests.
+- `npm test`: passed, 19 files / 37 tests.
 - `npm run check`: passed, `tsgo --noEmit` and `biome check .`.
 - `npm run qa:import`: passed, `import ok`.
 - `npm run qa:process-kill`: passed, child pid was reported and direct `SIGTERM` produced `killed`.
 - `npm run qa:senpi-install`: passed dry-run for `~/.senpi/agent/extensions/pi-task`.
-- `npm pack --dry-run`: passed, `pi-task-0.1.0.tgz`, 36 files.
+- `npm pack --dry-run`: passed, `pi-task-0.1.1.tgz`, 40 files.
 
 Manual QA scenario note:
 
