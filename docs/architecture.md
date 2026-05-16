@@ -18,7 +18,9 @@ Core rule: background task errors, abrupt process exits, resume state, and final
 
 In-process mode is the default. `InProcessRunner` creates a child `AgentSession` with `createAgentSession()`, records the child session id, injects the selected subagent prompt into the task prompt, and returns the last assistant text as the final response.
 
-Process mode uses `ProcessTaskRunner` and `ProcessRunner`. It launches a separate `senpi`/current-runtime process in JSON print mode, includes task id, parent/root session ids, and subagent type in the prompt, records the child pid, parses the final assistant response from JSON lines, and reports `killed` when the process exits by signal.
+The child session manager is in-memory. This is intentional: task children are separate isolated contexts for work delegation, not normal user sessions. They do not fork parent chat history and do not create session files that appear in `/resume`.
+
+Process mode uses `ProcessTaskRunner` and `ProcessRunner`. It launches a separate `senpi`/current-runtime process in JSON print mode with `--no-session`, includes task id, parent/root session ids, and subagent type in the prompt, records the child pid, parses the final assistant response from JSON lines, and reports `killed` when the process exits by signal.
 
 `CompositeTaskRunner` routes by `task.executionMode`, so both modes share persistence, logging, cancellation, status UI, and fallback handling.
 
@@ -34,11 +36,21 @@ Nested tasks are enforced before a task record is created:
 - Frontmatter task permissions can allow or deny `task:<agent>` or `task` patterns.
 - Denied delegations return a `denied` status and do not start a runner.
 
+Child tool scope is resolved from the same agent metadata:
+
+- Explicit `tools:` allow rules become a pi active-tool allowlist for the child.
+- `task` and `task:<agent>` allow rules enable the task tool family: `task`, `task_status`, and `task_cancel`.
+- `allowedSubagents` also enables the task tool family because it is an explicit policy override for nested delegation.
+- `disallowedTools` are removed from inherited or explicit tool sets.
+- In-process mode passes the allowlist through `createAgentSession({ tools })`; process mode passes `--tools` or `--no-tools`.
+
 ## Persistence And Resume
 
 Task records are atomically written to `~/.senpi/task/tasks/<task-id>.json`. Final responses and errors remain available through `task_status` after the task finishes.
 
 On `session_start`, `TaskManager.resume()` reloads persisted task records. Completed terminal tasks are restored as resumed. Running process tasks are reconciled by pid and heartbeat state; missing pids, dead pids, or stale heartbeats become `lost` with an explanation. Running in-process tasks from a previous process also become `lost` because their memory-local child loop cannot be reattached.
+
+Cancellation is terminal and idempotent. If a runner later fails after the parent has already cancelled the task, the manager preserves `cancelled` and logs the late failure instead of attempting an invalid `cancelled -> failed` transition.
 
 Task JSONL logs are written to `~/.senpi/task/logs/<task-id>.jsonl`; token/password/secret/authorization/api-key-like fields are redacted.
 
@@ -63,4 +75,8 @@ Runtime code must use `@mariozechner/pi-coding-agent` public exports only. If a 
 
 ## TUI Surface
 
-`syncTaskStatusToUi()` renders a footer status (`tasks:N run:N done:N err:N`) and a below-editor widget for active tasks. `/tasks` shows all known tasks. `/task-kill` opens pi's selector/confirmation UI for cancellation; that inherits pi TUI keyboard handling and mouse handling where the installed TUI exposes it. `task_cancel` provides model/tool-call cancellation in all modes.
+`syncTaskStatusToUi()` renders a current-session footer status (`tasks:N run:N done:N err:N | <active-task>`) and a below-editor widget for active tasks. The active row includes task id, agent, state, execution mode, model, pid, child id, resume state, latest progress, final summary, or error summary when present.
+
+The footer/widget are scoped by `ctx.sessionManager.getSessionId()`. A fresh top-level session does not display stale tasks from other roots. Explicit surfaces still work: `/tasks` shows the current session list, `/tasks --all` includes persisted tasks from other sessions, and `task_status(task_id)` can inspect a known persisted task by id regardless of UI scope.
+
+`/task-kill` opens pi's selector/confirmation UI for cancellable tasks in the current session; that inherits pi TUI keyboard handling and mouse handling where the installed TUI exposes it. `task_cancel` provides model/tool-call cancellation in all modes.

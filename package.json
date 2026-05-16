@@ -1,6 +1,6 @@
 {
 	"name": "pi-task",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"description": "Task subagent extension for the pi coding agent with background lifecycle visibility, resume, process supervision, and final-result retrieval.",
 	"type": "module",
 	"license": "MIT",
@@ -45,6 +45,8 @@
 		"lint:fix": "biome check --write .",
 		"check": "tsgo --noEmit && biome check .",
 		"qa:import": "node scripts/qa-import.mjs",
+		"qa:status-scope": "node scripts/qa-status-scope.mjs",
+		"qa:child-tools": "node scripts/qa-child-tools.mjs",
 		"qa:process-kill": "node scripts/qa-process-kill.mjs",
 		"qa:senpi-install": "node scripts/qa-senpi-install.mjs --dry-run"
 	},

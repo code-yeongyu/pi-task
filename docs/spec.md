@@ -1,6 +1,6 @@
 # pi-task Spec
 
-Status: DRAFT
+Status: IMPLEMENTED
 
 ## User Request AS-IS
 
@@ -50,3 +50,35 @@ Additional requirements:
 - Resume must be supported.
 - If a process disappears or the child process itself exits unexpectedly, the parent must see a truthful terminal state and explanation.
 - Pi lifecycle and tool events must be mapped intentionally, with structured logs that make background task state, errors, final responses, resume, and abrupt process disappearance auditable.
+
+## Follow-up Corrections Implemented In 0.1.4
+
+```text
+task
+Started background task task_mp83vlqo_1. Use task_status to inspect it.
+
+그리고 이렇게 tui 에 뜨는데 ../opencode 마냥 어떤 서브에이전트를 어떤 모델로 했고 지금 상태나 이런것도 그 tui 쪽 푸터 안에 그 액티브하게 다 제대로 띄워줘야지 지금시발..
+```
+
+```text
+pi exiting due to uncaughtException:
+InvalidTaskTransitionError: Invalid task transition: cancelled -> failed
+```
+
+```text
+tasks:2 done:2 이것도 내가 패런트 세션 아니고 아예 새세션열었는데잘못뜸 시발
+```
+
+```text
+그리고 메인세션에서 포크가되는건아니지 항상 ? 그거아니다 별도 콘텍스트가맞다?
+그리고 서브에이전트 세션을 /resume 으로 볼 수 있으면 안됨 이거는 아님 ..
+```
+
+Implemented behavior:
+
+- Background launch output now includes agent, execution mode, and model when known.
+- Footer/widget rows are scoped to the current parent/root session and include active task metadata.
+- In-process children use an in-memory isolated session, do not fork parent chat history, and cannot appear in `/resume`.
+- Process children run with `--no-session` and do not fork parent chat history.
+- Agent tool rules become child active-tool allowlists for both in-process and process mode.
+- Cancellation is terminal; late runner failures are logged without crashing the parent.

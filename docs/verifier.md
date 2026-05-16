@@ -24,6 +24,9 @@ Verifier attempts:
 - Independent read-only `senpi` verifier attempt 2: `VERIFIER PASS`.
 - `openai/gpt-5.2` xhigh judge attempt 1: failed on nondeterministic async test sleeps and missing cancellation behavior coverage.
 - `openai/gpt-5.2` xhigh judge attempt 2: `GPT-5.2 XHIGH PASS`.
+- Read-only slop/type reviewer `019e304d-406e-7360-99e9-70ec633a47f2`: failed on cancellation propagation when a host abort signal was present.
+- Read-only slop/type re-review `019e3056-a318-76c1-9f79-9c913b8a7cba`: `PASS`.
+- `openai/gpt-5.2` xhigh final verifier `019e3056-a366-7fe3-9ac6-f38d0af930d1`: `PASS`.
 
 Final verifier note:
 
@@ -35,4 +38,10 @@ GPT-5.2 xhigh final note:
 
 ```text
 GPT-5.2 XHIGH PASS: No remaining TS-rule blockers; async tests are deterministic; task_cancel/TaskManager.cancel behavior is covered; task() core requirements remain covered across code, tests, docs, manual QA, CI, and release artifacts.
+```
+
+0.1.4 final verifier note:
+
+```text
+PASS: task_cancel aborts the actual runner even when a host abort signal exists; no no-slop/type blockers remain; background lifecycle, process pid/exit/death visibility, in-process non-resume isolation, process --no-session, scoped TUI status, live UI refresh, permissions, allowedSubagents, model fallback, docs, QA evidence, and local ~/.senpi install are covered.
 ```
