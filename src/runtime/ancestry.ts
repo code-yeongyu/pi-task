@@ -21,11 +21,11 @@ export function getInProcessAncestry(sessionId: string): TaskAncestry | undefine
 }
 
 export function getEnvironmentAncestry(): TaskAncestry | undefined {
-	const taskId = process.env.PI_TASK_PARENT_TASK_ID;
-	const agentType = process.env.PI_TASK_AGENT_TYPE;
-	const parentSessionId = process.env.PI_TASK_PARENT_SESSION_ID;
-	const rootSessionId = process.env.PI_TASK_ROOT_SESSION_ID;
-	const depthRaw = process.env.PI_TASK_DEPTH;
+	const taskId = process.env["PI_TASK_PARENT_TASK_ID"];
+	const agentType = process.env["PI_TASK_AGENT_TYPE"];
+	const parentSessionId = process.env["PI_TASK_PARENT_SESSION_ID"];
+	const rootSessionId = process.env["PI_TASK_ROOT_SESSION_ID"];
+	const depthRaw = process.env["PI_TASK_DEPTH"];
 	if (
 		taskId === undefined ||
 		agentType === undefined ||

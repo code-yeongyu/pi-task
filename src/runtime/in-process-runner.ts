@@ -134,7 +134,7 @@ export class InProcessRunner implements TaskRunner {
 		);
 		const model = resolveModel(input.task.model, registry);
 		const agents = await this.#loadAgents(cwd);
-		const agent = agents[input.task.agentType] ?? agents.default;
+		const agent = agents[input.task.agentType] ?? agents["default"];
 		const session = await this.#createSession({
 			cwd,
 			persistSession: false,

@@ -91,7 +91,7 @@ export class ProcessTaskRunner implements TaskRunner {
 	async run(input: RunnerInput): Promise<RunnerResult> {
 		const cwd = input.task.cwd ?? process.cwd();
 		const agents = await this.#loadAgents(cwd);
-		const agent = agents[input.task.agentType] ?? agents.default;
+		const agent = agents[input.task.agentType] ?? agents["default"];
 		const args = ["--mode", "json", "-p", "--no-session"];
 		if (input.task.model !== undefined) {
 			args.push("--model", input.task.model);
@@ -105,7 +105,7 @@ export class ProcessTaskRunner implements TaskRunner {
 		}
 		args.push(buildPrompt(input.task, agent));
 		const invocation = getPiInvocation(args);
-		const result = await this.#processRunner.run({
+		const processInput = {
 			command: invocation.command,
 			args: invocation.args,
 			cwd,
@@ -114,7 +114,7 @@ export class ProcessTaskRunner implements TaskRunner {
 			parentSessionId: input.task.parentSessionId,
 			rootSessionId: input.task.rootSessionId,
 			depth: input.task.depth,
-			signal: input.signal,
+			...(input.signal !== undefined && { signal: input.signal }),
 			onEvent: (event) => {
 				if (event.type === "started") {
 					input.onUpdate?.({ type: "pid", pid: event.pid });
@@ -124,7 +124,8 @@ export class ProcessTaskRunner implements TaskRunner {
 					input.onUpdate?.({ type: "heartbeat", pid: event.pid });
 				}
 			},
-		} satisfies ProcessRunnerInput);
+		} satisfies ProcessRunnerInput;
+		const result = await this.#processRunner.run(processInput);
 		return mapProcessResult(result);
 	}
 }

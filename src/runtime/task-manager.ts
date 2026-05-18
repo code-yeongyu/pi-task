@@ -141,7 +141,7 @@ export class TaskManager {
 
 	start(input: StartTaskInput): StartTaskResult {
 		const modelAttempts = createModelAttempts({
-			parentModel: this.#parentModel,
+			...(this.#parentModel !== undefined && { parentModel: this.#parentModel }),
 			...(input.model !== undefined && { model: input.model }),
 			...(input.models !== undefined && { models: input.models }),
 		});
@@ -248,7 +248,7 @@ export class TaskManager {
 
 			const result = await this.#runner.run({
 				task: current,
-				signal,
+				...(signal !== undefined && { signal }),
 				onUpdate: (update) => {
 					this.#applyRunnerUpdate(current.taskId, update);
 				},
@@ -291,7 +291,11 @@ export class TaskManager {
 			) {
 				next = transitionTask(
 					{ ...next, modelAttempts: nextAttempts },
-					{ status: "retrying", now: endedAt, errorMessage: result.errorMessage },
+					{
+						status: "retrying",
+						now: endedAt,
+						...(result.errorMessage !== undefined && { errorMessage: result.errorMessage }),
+					},
 				);
 				this.#tasks.set(next.taskId, next);
 				this.#emitTaskChange(next);

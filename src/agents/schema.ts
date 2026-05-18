@@ -72,21 +72,21 @@ export function validateAgentConfig(name: string, frontmatter: unknown, body: st
 	if (!allowedSubagents.ok) return allowedSubagents;
 	const disallowedTools = readStringArray(source, "disallowedTools");
 	if (!disallowedTools.ok) return disallowedTools;
-	const tools = readPermissionConfig(source.tools);
-	const model = typeof source.model === "string" ? source.model : undefined;
-	const description = typeof source.description === "string" ? source.description : undefined;
-	const temperature = typeof source.temperature === "number" ? source.temperature : undefined;
-	const background = typeof source.background === "boolean" ? source.background : undefined;
-	const maxTurns = typeof source.maxTurns === "number" ? source.maxTurns : undefined;
-	const maxDepth = typeof source.maxDepth === "number" ? source.maxDepth : undefined;
-	const executionMode = readExecutionMode(source.executionMode);
+	const tools = readPermissionConfig(source["tools"]);
+	const model = typeof source["model"] === "string" ? source["model"] : undefined;
+	const description = typeof source["description"] === "string" ? source["description"] : undefined;
+	const temperature = typeof source["temperature"] === "number" ? source["temperature"] : undefined;
+	const background = typeof source["background"] === "boolean" ? source["background"] : undefined;
+	const maxTurns = typeof source["maxTurns"] === "number" ? source["maxTurns"] : undefined;
+	const maxDepth = typeof source["maxDepth"] === "number" ? source["maxDepth"] : undefined;
+	const executionMode = readExecutionMode(source["executionMode"]);
 
 	return {
 		ok: true,
 		value: {
 			name,
 			...(description !== undefined && { description }),
-			mode: readMode(source.mode),
+			mode: readMode(source["mode"]),
 			...(model !== undefined && { model }),
 			...(models.value !== undefined && { models: models.value }),
 			...(temperature !== undefined && { temperature }),
@@ -98,7 +98,7 @@ export function validateAgentConfig(name: string, frontmatter: unknown, body: st
 			...(maxDepth !== undefined && { maxDepth }),
 			allowedSubagents: allowedSubagents.value ?? [],
 			disallowedTools: disallowedTools.value ?? [],
-			disable: source.disable === true,
+			disable: source["disable"] === true,
 			prompt: body.trim(),
 			native: false,
 		},

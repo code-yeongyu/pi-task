@@ -2,14 +2,17 @@ import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { TaskRecord } from "./types.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isTaskRecord(value: unknown): value is TaskRecord {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const record = value as Record<string, unknown>;
+	if (!isRecord(value)) return false;
 	return (
-		typeof record.taskId === "string" &&
-		typeof record.agentType === "string" &&
-		typeof record.prompt === "string" &&
-		typeof record.status === "string"
+		typeof value["taskId"] === "string" &&
+		typeof value["agentType"] === "string" &&
+		typeof value["prompt"] === "string" &&
+		typeof value["status"] === "string"
 	);
 }
 

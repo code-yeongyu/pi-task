@@ -35,9 +35,9 @@ describe("agent loader", () => {
 
 		const agents = await loadAllAgents(cwd, home);
 
-		expect(agents.finder?.description).toBe("Project finder");
-		expect(agents.finder?.prompt).toBe("Project prompt");
-		expect(agents.finder?.models).toEqual(["gpt-5.5"]);
+		expect(agents["finder"]?.description).toBe("Project finder");
+		expect(agents["finder"]?.prompt).toBe("Project prompt");
+		expect(agents["finder"]?.models).toEqual(["gpt-5.5"]);
 	});
 
 	it("#given senpi agents compatibility path #when loading #then reads ~/.senpi/agents/agents", async () => {
@@ -52,8 +52,8 @@ describe("agent loader", () => {
 
 		const agents = await loadAllAgents(cwd, home);
 
-		expect(agents.reviewer?.description).toBe("Reviews code");
-		expect(agents.reviewer?.prompt).toBe("Review code");
+		expect(agents["reviewer"]?.description).toBe("Reviews code");
+		expect(agents["reviewer"]?.prompt).toBe("Review code");
 	});
 
 	it("#given nested tools frontmatter #when loading #then builds subagent permission rules", async () => {
@@ -68,7 +68,7 @@ describe("agent loader", () => {
 
 		const agents = await loadAllAgents(cwd, home);
 
-		expect(agents.finder?.permission).toEqual(
+		expect(agents["finder"]?.permission).toEqual(
 			expect.arrayContaining([
 				{ permission: "task", pattern: "github-librarian", action: "allow" },
 				{ permission: "task", pattern: "web-librarian", action: "allow" },

@@ -34,7 +34,10 @@ function scopedTasks(tasks: readonly TaskRecord[], options: TaskScopeOptions = {
 }
 
 function listScoped(source: TaskListSource, options: TaskScopeOptions = {}): TaskRecord[] {
-	return source.listForScope?.({ sessionId: options.sessionId }) ?? scopedTasks(source.list(), options);
+	return (
+		source.listForScope?.(options.sessionId === undefined ? {} : { sessionId: options.sessionId }) ??
+		scopedTasks(source.list(), options)
+	);
 }
 
 function latestProgress(task: TaskRecord): string | undefined {
@@ -107,9 +110,10 @@ export function formatFooterStatus(manager: TaskListSource, options: TaskScopeOp
 export function syncTaskStatusToUi(manager: TaskListSource, ctx: StatusUiContext): void {
 	if (!ctx.hasUI) return;
 	const sessionId = ctx.sessionManager?.getSessionId();
-	const status = formatFooterStatus(manager, { sessionId });
+	const options = sessionId === undefined ? {} : { sessionId };
+	const status = formatFooterStatus(manager, options);
 	ctx.ui.setStatus("pi-task", status === undefined ? undefined : ctx.ui.theme.fg("accent", status));
-	const active = listScoped(manager, { sessionId }).filter((task) => !isTerminalTaskStatus(task.status));
+	const active = listScoped(manager, options).filter((task) => !isTerminalTaskStatus(task.status));
 	if (active.length === 0) {
 		ctx.ui.setWidget("pi-task", undefined);
 		return;

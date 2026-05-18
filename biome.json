@@ -3,8 +3,12 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"complexity": {
+				"useLiteralKeys": "off"
+			},
 			"style": {
-				"noNonNullAssertion": "off",
+				"noNonNullAssertion": "error",
+				"useImportType": "error",
 				"useConst": "error",
 				"useNodejsImportProtocol": "off"
 			},

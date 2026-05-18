@@ -32,7 +32,9 @@ function isWholeToolDeny(rule: Rule): boolean {
 }
 
 export function resolveAgentToolSelection(agent: AgentInfo | undefined, childDepth?: number): AgentToolSelection {
-	return resolveChildToolSelection({ agent, childDepth });
+	return childDepth === undefined
+		? resolveChildToolSelection({ agent })
+		: resolveChildToolSelection({ agent, childDepth });
 }
 
 export function resolveChildToolSelection(input: AgentToolSelectionInput): AgentToolSelection {

@@ -26,8 +26,9 @@ function isCancellableStatus(status: string): boolean {
 function notifyTasks(manager: TaskManager, ctx: ExtensionContext, options: { all?: boolean } = {}): void {
 	if (!ctx.hasUI) return;
 	syncTaskStatusToUi(manager, ctx);
-	const sessionId = options.all ? undefined : ctx.sessionManager.getSessionId();
-	const tasks = manager.listForScope({ ...(options.all ? { all: true } : { sessionId }) });
+	const tasks = options.all
+		? manager.listForScope({ all: true })
+		: manager.listForScope({ sessionId: ctx.sessionManager.getSessionId() });
 	ctx.ui.notify(formatTaskList(tasks));
 }
 

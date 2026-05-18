@@ -20,13 +20,17 @@ type BridgeDeps = {
 	getParentModel: () => string | undefined;
 };
 
+function isSelectedModel(value: unknown): value is { readonly provider: unknown; readonly id: unknown } {
+	return typeof value === "object" && value !== null && "provider" in value && "id" in value;
+}
+
 function appendEvent(pi: PiEventBridgeApi, data: Record<string, unknown>): void {
 	pi.appendEntry?.(ENTRY_TYPE, { ...data, timestamp: Date.now() });
 }
 
 export function installTaskEventBridge(pi: PiEventBridgeApi, deps: BridgeDeps): void {
 	pi.on("session_start", async (event, ctx) => {
-		const reason = typeof event.reason === "string" ? event.reason : "startup";
+		const reason = typeof event["reason"] === "string" ? event["reason"] : "startup";
 		const cwd = typeof ctx.cwd === "string" ? ctx.cwd : process.cwd();
 		await deps.manager.resume({ cwd, reason });
 		appendEvent(pi, { type: "session_start", reason, cwd });
@@ -47,25 +51,24 @@ export function installTaskEventBridge(pi: PiEventBridgeApi, deps: BridgeDeps): 
 	});
 
 	pi.on("tool_call", async (event) => {
-		appendEvent(pi, { type: "tool_call", toolName: event.toolName, toolCallId: event.toolCallId });
+		appendEvent(pi, { type: "tool_call", toolName: event["toolName"], toolCallId: event["toolCallId"] });
 	});
 
 	pi.on("tool_result", async (event) => {
-		appendEvent(pi, { type: "tool_result", toolName: event.toolName, toolCallId: event.toolCallId });
+		appendEvent(pi, { type: "tool_result", toolName: event["toolName"], toolCallId: event["toolCallId"] });
 	});
 
 	pi.on("model_select", async (event) => {
-		const model = event.model;
-		const modelLabel =
-			typeof model === "object" && model !== null && "provider" in model && "id" in model
-				? `${String(model.provider)}/${String(model.id)}`
-				: deps.getParentModel();
+		const model = event["model"];
+		const modelLabel = isSelectedModel(model)
+			? `${String(model.provider)}/${String(model.id)}`
+			: deps.getParentModel();
 		deps.manager.setParentModel(modelLabel);
 		appendEvent(pi, { type: "model_select", model: modelLabel });
 	});
 
 	pi.on("before_agent_start", async (event) => {
-		const systemPrompt = typeof event.systemPrompt === "string" ? event.systemPrompt : "";
+		const systemPrompt = typeof event["systemPrompt"] === "string" ? event["systemPrompt"] : "";
 		if (systemPrompt.includes("pi-task: Use task")) {
 			return { systemPrompt };
 		}

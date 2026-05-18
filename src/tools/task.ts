@@ -75,7 +75,7 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 		): Promise<AgentToolResult<TaskToolDetails>> {
 			const agents: Record<string, AgentInfo> = await loadAgents(ctx.cwd).catch(() => ({}));
 			const agentType = params.subagent_type ?? "default";
-			const agent = agents[agentType] ?? (agentType === "default" ? agents.default : undefined);
+			const agent = agents[agentType] ?? (agentType === "default" ? agents["default"] : undefined);
 			const ancestry = getCurrentAncestry(ctx);
 			const parentAgent = ancestry === undefined ? undefined : agents[ancestry.agentType];
 			const policy = decideTaskPolicy({
@@ -107,7 +107,7 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 				...(params.description !== undefined && { description: params.description }),
 				parentSessionId,
 				rootSessionId,
-				parentAgentType: ancestry?.agentType,
+				...(ancestry?.agentType !== undefined && { parentAgentType: ancestry.agentType }),
 				depth,
 				cwd: ctx.cwd,
 				...(executionMode !== undefined && { executionMode }),
@@ -121,7 +121,7 @@ export function createTaskTool(manager: TaskManager, options: CreateTaskToolOpti
 				...(toolSelection.kind === "allowlist" &&
 					explicitDisallowedTools.length > 0 && { toolDisallowlist: explicitDisallowedTools }),
 				background,
-				signal,
+				...(signal !== undefined && { signal }),
 			});
 			const startedDetails = {
 				task_id: started.task.taskId,
