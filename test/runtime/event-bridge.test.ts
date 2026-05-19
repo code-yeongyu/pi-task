@@ -40,6 +40,38 @@ describe("pi event bridge", () => {
 		expect(appendEntry).toHaveBeenCalledWith("pi-task.event", expect.objectContaining({ type: "session_start" }));
 	});
 
+	it("#given host appendEntry throws ENOENT #when bridge handles lifecycle telemetry #then lifecycle side effects still run", async () => {
+		const handlers = new Map<string, Handler>();
+		const resume = vi.fn();
+		const syncStatus = vi.fn();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const appendEntry = vi.fn(() => {
+			throw Object.assign(new Error("missing session file"), { code: "ENOENT" });
+		});
+		const pi = {
+			on(eventName: string, handler: Handler) {
+				handlers.set(eventName, handler);
+			},
+			appendEntry,
+		};
+
+		installTaskEventBridge(pi, {
+			manager: { resume, setParentModel: vi.fn() },
+			syncStatus,
+			getParentModel: () => "parent/model",
+		});
+
+		await expect(
+			handlers.get("session_start")?.({ type: "session_start", reason: "resume" }, createContext()),
+		).resolves.toBeUndefined();
+
+		expect(resume).toHaveBeenCalledWith({ cwd: "/tmp/project", reason: "resume" });
+		expect(appendEntry).toHaveBeenCalledWith("pi-task.event", expect.objectContaining({ type: "session_start" }));
+		expect(syncStatus).toHaveBeenCalledWith(expect.objectContaining({ cwd: "/tmp/project" }));
+		expect(warn).toHaveBeenCalledWith("[pi-task] skipped session telemetry append: missing session file");
+		warn.mockRestore();
+	});
+
 	it("#given before_agent_start #when bridge handles it twice #then injects task guidance once", async () => {
 		const handlers = new Map<string, Handler>();
 		const pi = {

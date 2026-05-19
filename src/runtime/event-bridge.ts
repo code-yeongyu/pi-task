@@ -5,6 +5,7 @@ import type { TaskManager } from "./task-manager.js";
 const ENTRY_TYPE = "pi-task.event";
 const GUIDANCE =
 	"\n\npi-task: Use task for delegated subagent work. Use task_status to inspect background final responses, errors, resume state, pids, and killed/lost process states. Use task_cancel to stop running subagents.";
+let reportedAppendEntryFailure = false;
 
 export type BridgeContext = StatusUiContext & Pick<ExtensionContext, "cwd">;
 type Handler = (event: Record<string, unknown>, ctx: BridgeContext) => Promise<unknown> | unknown;
@@ -24,8 +25,26 @@ function isSelectedModel(value: unknown): value is { readonly provider: unknown;
 	return typeof value === "object" && value !== null && "provider" in value && "id" in value;
 }
 
+function isMissingSessionFileError(error: unknown): boolean {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+function describeError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 function appendEvent(pi: PiEventBridgeApi, data: Record<string, unknown>): void {
-	pi.appendEntry?.(ENTRY_TYPE, { ...data, timestamp: Date.now() });
+	try {
+		pi.appendEntry?.(ENTRY_TYPE, { ...data, timestamp: Date.now() });
+	} catch (error) {
+		if (!isMissingSessionFileError(error)) {
+			throw error;
+		}
+		if (!reportedAppendEntryFailure) {
+			reportedAppendEntryFailure = true;
+			console.warn(`[pi-task] skipped session telemetry append: ${describeError(error)}`);
+		}
+	}
 }
 
 export function installTaskEventBridge(pi: PiEventBridgeApi, deps: BridgeDeps): void {
